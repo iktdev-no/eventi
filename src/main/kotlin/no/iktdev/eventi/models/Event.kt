@@ -10,9 +10,6 @@ abstract class Event {
     var metadata: Metadata = Metadata()
         protected set
 
-    @Transient
-    open val data: Any? = null
-
     fun derivedOf(event: Event) = apply {
         this.referenceId = event.referenceId
         this.metadata = Metadata(derivedFromId = event.eventId)

@@ -44,10 +44,10 @@ class AbstractTaskPollerTest : TestBase() {
         }
     }
 
-    data class EchoTask(override var data: String?) : Task() {
+    data class EchoTask(var data: String?) : Task() {
     }
 
-    data class EchoEvent(override var data: String) : Event() {
+    data class EchoEvent(var data: String) : Event() {
     }
 
     class TaskPollerTest(taskStore: TaskStore, reporterFactory: (Task) -> TaskReporter): AbstractTaskPoller(taskStore, reporterFactory) {

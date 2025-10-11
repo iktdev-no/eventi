@@ -11,9 +11,6 @@ abstract class Task {
     var metadata: Metadata = Metadata()
         protected set
 
-    @Transient
-    open val data: Any? = null
-
     fun newReferenceId() = apply {
         this.referenceId = UUID.randomUUID()
     }

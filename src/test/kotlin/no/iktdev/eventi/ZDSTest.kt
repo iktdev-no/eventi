@@ -39,7 +39,7 @@ class ZDSTest {
     }
 
     data class TestTask(
-        override val data: String?
+        val data: String?
     ): Task()
 
     @Test

@@ -7,8 +7,8 @@ import java.util.UUID
 class StartEvent(): Event() {
 }
 
-class EchoEvent(override var data: String): Event() {
+class EchoEvent(var data: String): Event() {
 }
 
-class MarcoEvent(override val data: Boolean): Event() {
+class MarcoEvent(val data: Boolean): Event() {
 }
