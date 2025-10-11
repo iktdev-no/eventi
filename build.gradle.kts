@@ -6,22 +6,15 @@ plugins {
 }
 
 group = "no.iktdev"
-version = "1.0-rc1"
+version = "1.0-SNAPSHOT"
 val named = "eventi"
 
 repositories {
     mavenCentral()
 }
 
-val exposedVersion = "0.61.0"
 
 dependencies {
-
-    implementation ("mysql:mysql-connector-java:8.0.29")
-    implementation("org.jetbrains.exposed:exposed-core:${exposedVersion}")
-    implementation("org.jetbrains.exposed:exposed-dao:${exposedVersion}")
-    implementation("org.jetbrains.exposed:exposed-jdbc:${exposedVersion}")
-    implementation("org.jetbrains.exposed:exposed-java-time:${exposedVersion}")
 
     implementation("com.google.code.gson:gson:2.8.9")
 
@@ -57,6 +50,7 @@ val reposiliteUrl = if (version.toString().endsWith("SNAPSHOT")) {
 publishing {
     publications {
         create<MavenPublication>("reposilite") {
+            artifactId = named
             versionMapping {
                 usage("java-api") {
                     fromResolutionOf("runtimeClasspath")
