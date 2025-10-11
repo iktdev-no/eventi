@@ -1,0 +1,196 @@
+package no.iktdev.eventi.tasks
+
+import io.mockk.mockk
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.runTest
+import no.iktdev.eventi.InMemoryTaskStore
+import no.iktdev.eventi.TestBase
+import no.iktdev.eventi.events.EventListener
+import no.iktdev.eventi.events.EventTypeRegistry
+import no.iktdev.eventi.models.Event
+import no.iktdev.eventi.models.Task
+import no.iktdev.eventi.stores.TaskStore
+import no.iktdev.eventi.testUtil.multiply
+import no.iktdev.eventi.testUtil.wipe
+import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.Test
+import java.time.Duration
+import java.util.UUID
+
+class AbstractTaskPollerTest : TestBase() {
+
+    @BeforeEach
+    fun setup() {
+        TaskListenerRegistry.wipe()
+        TaskTypeRegistry.wipe()
+        eventDeferred = CompletableDeferred()
+    }
+
+    private lateinit var eventDeferred: CompletableDeferred<Event>
+    val reporterFactory = { _: Task ->
+        object : TaskReporter {
+            override fun markClaimed(taskId: UUID, workerId: String) {}
+            override fun updateLastSeen(taskId: UUID) {}
+            override fun markConsumed(taskId: UUID) {}
+            override fun updateProgress(taskId: UUID, progress: Int) {}
+            override fun log(taskId: UUID, message: String) {}
+            override fun publishEvent(event: Event) {
+                eventDeferred.complete(event)
+            }
+        }
+    }
+
+    data class EchoTask(override var data: String?) : Task() {
+    }
+
+    data class EchoEvent(override var data: String) : Event() {
+    }
+
+    class TaskPollerTest(taskStore: TaskStore, reporterFactory: (Task) -> TaskReporter): AbstractTaskPoller(taskStore, reporterFactory) {
+        fun overrideSetBackoff(duration: java.time.Duration) {
+            backoff = duration
+        }
+    }
+
+
+    open class EchoListener : TaskListener<String>(TaskType.MIXED) {
+        var result: String? = null
+
+        override fun getWorkerId() = this.javaClass.simpleName
+
+        override fun supports(task: Task): Boolean {
+            return task is EchoTask
+        }
+
+        override fun onTask(task: Task): String {
+            if (task is EchoTask) {
+                return task.data + " Potetmos"
+            }
+            throw IllegalArgumentException("Unsupported task type: ${task::class.java}")
+        }
+
+        override fun onComplete(task: Task, result: String?) {
+            super.onComplete(task, result)
+            this.result = result;
+            reporter?.publishEvent(EchoEvent(result!!).producedFrom(task))
+        }
+
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun scenario1() = runTest {
+        // Register Task and Event
+        TaskTypeRegistry.register(EchoTask::class.java)
+        EventTypeRegistry.register(EchoEvent::class.java)
+
+        val listener = EchoListener()
+
+        val poller = object : AbstractTaskPoller(taskStore, reporterFactory) {}
+
+        val task = EchoTask("Hello").newReferenceId()
+        taskStore.persist(task)
+        poller.pollOnce()
+        advanceUntilIdle()
+        val producedEvent = eventDeferred.await()
+        assertThat(producedEvent).isNotNull
+        assertThat(producedEvent!!.metadata.derivedFromId).isEqualTo(task.taskId)
+        assertThat(listener.result).isEqualTo("Hello Potetmos")
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    @Test
+    fun `poller resets backoff when task is accepted`() = runTest {
+        TaskTypeRegistry.register(EchoTask::class.java)
+        EventTypeRegistry.register(EchoEvent::class.java)
+
+        val listener = EchoListener()
+        val poller = TaskPollerTest(taskStore, reporterFactory)
+        val initialBackoff = poller.backoff
+
+        poller.overrideSetBackoff(Duration.ofSeconds(16))
+        val task = EchoTask("Hello").newReferenceId()
+        taskStore.persist(task)
+
+        poller.pollOnce()
+        advanceUntilIdle()
+
+        assertEquals(initialBackoff, poller.backoff)
+        assertEquals("Hello Potetmos", listener.result)
+    }
+
+    @Test
+    fun `poller increases backoff when no tasks`() = runTest {
+        val poller = object : AbstractTaskPoller(taskStore, reporterFactory) {}
+        val initialBackoff = poller.backoff
+        val totalBackoff = initialBackoff.multiply(2)
+
+        poller.pollOnce()
+
+        assertEquals(totalBackoff, poller.backoff)
+    }
+
+
+    @Test
+    fun `poller increases backoff when no listener supports task`() = runTest {
+        val poller = object : AbstractTaskPoller(taskStore, reporterFactory) {}
+        val initialBackoff = poller.backoff
+
+        // as long as the task is not added to registry this will be unsupported
+        val unsupportedTask = EchoTask("Hello").newReferenceId()
+        taskStore.persist(unsupportedTask)
+
+        poller.pollOnce()
+
+        assertEquals(initialBackoff.multiply(2), poller.backoff)
+    }
+
+    @Test
+    fun `poller increases backoff when listener is busy`() = runTest {
+        val busyListener = object : EchoListener() {
+            override val isBusy = true
+        }
+
+        val poller = object : AbstractTaskPoller(taskStore, reporterFactory) {}
+        val intialBackoff = poller.backoff
+
+        val task = EchoTask("Busy").newReferenceId()
+        taskStore.persist(task)
+
+        poller.pollOnce()
+
+        assertEquals(intialBackoff.multiply(2), poller.backoff)
+    }
+
+    @Test
+    fun `poller increases backoff when task is not claimed`() = runTest {
+        val listener = EchoListener()
+        TaskTypeRegistry.register(EchoTask::class.java)
+        val task = EchoTask("Unclaimable").newReferenceId()
+        taskStore.persist(task)
+
+        // Simuler at claim alltid feiler
+        val failingStore = object : InMemoryTaskStore() {
+            override fun claim(taskId: UUID, workerId: String): Boolean = false
+        }
+        val pollerWithFailingClaim = object : AbstractTaskPoller(failingStore, reporterFactory) {}
+        val initialBackoff = pollerWithFailingClaim.backoff
+
+        failingStore.persist(task)
+
+        pollerWithFailingClaim.pollOnce()
+
+        assertEquals(initialBackoff.multiply(2), pollerWithFailingClaim.backoff)
+    }
+
+
+
+
+
+
+
+}

@@ -2,7 +2,6 @@ package no.iktdev.eventi.events
 
 import kotlinx.coroutines.joinAll
 import kotlinx.coroutines.test.runTest
-import no.iktdev.eventi.EventDispatcherTest
 import no.iktdev.eventi.EventDispatcherTest.DerivedEvent
 import no.iktdev.eventi.EventDispatcherTest.OtherEvent
 import no.iktdev.eventi.EventDispatcherTest.TriggerEvent
@@ -14,8 +13,6 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
-import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 
 class SequenceDispatchQueueTest: TestBase() {
 
@@ -35,7 +32,7 @@ class SequenceDispatchQueueTest: TestBase() {
 
     @Test
     fun `should dispatch all referenceIds with limited concurrency`() = runTest {
-        val dispatcher = EventDispatcher(store)
+        val dispatcher = EventDispatcher(eventStore)
         val queue = SequenceDispatchQueue(maxConcurrency = 8)
 
         val dispatched = ConcurrentHashMap.newKeySet<UUID>()
@@ -52,7 +49,7 @@ class SequenceDispatchQueueTest: TestBase() {
 
         val jobs = referenceIds.mapNotNull { refId ->
             val e = TriggerEvent().usingReferenceId(refId)
-            store.save(e)
+            eventStore.persist(e)
             queue.dispatch(refId, listOf(e), dispatcher)
         }
 

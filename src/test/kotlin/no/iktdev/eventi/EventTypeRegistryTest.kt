@@ -23,7 +23,7 @@ class EventTypeRegistryTest: TestBase() {
     @Test
     @DisplayName("Test EventTypeRegistry registration")
     fun scenario1() {
-        DefaultTestEvents()
+        registerEventTypes()
         assertThat(EventTypeRegistry.resolve("EchoEvent")).isEqualTo(EchoEvent::class.java)
         assertThat(EventTypeRegistry.resolve("StartEvent")).isEqualTo(StartEvent::class.java)
     }

@@ -19,11 +19,10 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 class EventDispatcherTest: TestBase() {
-    val dispatcher = EventDispatcher(store)
+    val dispatcher = EventDispatcher(eventStore)
 
     class DerivedEvent(): Event()
     class TriggerEvent(): Event() {
-        fun usingReferenceId(id: UUID) = apply { referenceId = id }
     }
     class OtherEvent(): Event()
 
@@ -49,7 +48,7 @@ class EventDispatcherTest: TestBase() {
         val trigger = TriggerEvent()
         dispatcher.dispatch(trigger.referenceId, listOf(trigger))
 
-        val produced = store.all().firstOrNull()
+        val produced = eventStore.all().firstOrNull()
         assertNotNull(produced)
 
         val event = produced!!.toEvent()
@@ -63,11 +62,11 @@ class EventDispatcherTest: TestBase() {
 
         val trigger = TriggerEvent()
         val derived = DerivedEvent().derivedOf(trigger).toPersisted(1L, LocalDateTime.now())
-        store.save(derived.toEvent()) // simulate prior production
+        eventStore.persist(derived.toEvent()) // simulate prior production
 
         dispatcher.dispatch(trigger.referenceId, listOf(trigger, derived.toEvent()))
 
-        assertEquals(1, store.all().size) // no new event produced
+        assertEquals(1, eventStore.all().size) // no new event produced
     }
 
     @Test
@@ -87,16 +86,16 @@ class EventDispatcherTest: TestBase() {
 
         val trigger = TriggerEvent()
         dispatcher.dispatch(trigger.referenceId, listOf(trigger))
-        val replayContext = listOf(trigger) + store.all().map { it.toEvent() }
+        val replayContext = listOf(trigger) + eventStore.all().map { it.toEvent() }
 
         dispatcher.dispatch(trigger.referenceId, replayContext)
 
-        assertEquals(1, store.all().size) // no duplicate
+        assertEquals(1, eventStore.all().size) // no duplicate
     }
 
     @Test
     fun `should not deliver deleted events as candidates`() {
-        val dispatcher = EventDispatcher(store)
+        val dispatcher = EventDispatcher(eventStore)
         val received = mutableListOf<Event>()
         object : EventListener() {
             override fun onEvent(event: Event, history: List<Event>): Event? {

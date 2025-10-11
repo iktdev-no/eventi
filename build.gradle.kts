@@ -1,9 +1,13 @@
+import java.io.ByteArrayOutputStream
+
 plugins {
     kotlin("jvm") version "2.2.10"
+    id("maven-publish")
 }
 
 group = "no.iktdev"
-version = "1.0-SNAPSHOT"
+version = "1.0-rc1"
+val named = "eventi"
 
 repositories {
     mavenCentral()
@@ -33,7 +37,7 @@ dependencies {
     testImplementation("org.junit.jupiter:junit-jupiter")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
 
-
+    testImplementation("io.mockk:mockk:1.13.5")
     testImplementation("com.h2database:h2:2.2.220")
 }
 
@@ -43,3 +47,80 @@ tasks.test {
 kotlin {
     jvmToolchain(21)
 }
+
+val reposiliteUrl = if (version.toString().endsWith("SNAPSHOT")) {
+    "https://reposilite.iktdev.no/snapshots"
+} else {
+    "https://reposilite.iktdev.no/releases"
+}
+
+publishing {
+    publications {
+        create<MavenPublication>("reposilite") {
+            versionMapping {
+                usage("java-api") {
+                    fromResolutionOf("runtimeClasspath")
+                }
+                usage("java-runtime") {
+                    fromResolutionResult()
+                }
+            }
+            pom {
+                name.set(named)
+                version = project.version.toString()
+                url.set(reposiliteUrl)
+            }
+            from(components["kotlin"])
+        }
+    }
+    repositories {
+        mavenLocal()
+        maven {
+            name = named
+            url = uri(reposiliteUrl)
+            credentials {
+                username = System.getenv("reposiliteUsername")
+                password = System.getenv("reposilitePassword")
+            }
+        }
+    }
+}
+
+fun findLatestTag(): String {
+    val stdout = ByteArrayOutputStream()
+    exec {
+        commandLine = listOf("git", "describe", "--tags", "--abbrev=0")
+        standardOutput = stdout
+        isIgnoreExitValue = true
+    }
+    return stdout.toString().trim().removePrefix("v")
+}
+
+fun isSnapshotBuild(): Boolean {
+    // Use environment variable or branch name to detect snapshot
+    val ref = System.getenv("GITHUB_REF") ?: ""
+    return ref.endsWith("/master") || ref.endsWith("/main")
+}
+
+fun getCommitsSinceTag(tag: String): Int {
+    val stdout = ByteArrayOutputStream()
+    exec {
+        commandLine = listOf("git", "rev-list", "$tag..HEAD", "--count")
+        standardOutput = stdout
+        isIgnoreExitValue = true
+    }
+    return stdout.toString().trim().toIntOrNull() ?: 0
+}
+
+val latestTag = findLatestTag()
+val versionString = if (isSnapshotBuild()) {
+    val parts = latestTag.split(".")
+    val patch = parts.lastOrNull()?.toIntOrNull()?.plus(1) ?: 1
+    val base = if (parts.size >= 2) "${parts[0]}.${parts[1]}" else latestTag
+    val buildNumber = getCommitsSinceTag("v$latestTag")
+    "$base.$patch-SNAPSHOT-$buildNumber"
+} else {
+    latestTag
+}
+
+version = versionString

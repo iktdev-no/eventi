@@ -9,7 +9,11 @@ import com.google.gson.JsonSerializationContext
 import com.google.gson.JsonSerializer
 import no.iktdev.eventi.events.EventTypeRegistry
 import no.iktdev.eventi.models.Event
+import no.iktdev.eventi.models.Task
 import no.iktdev.eventi.models.store.PersistedEvent
+import no.iktdev.eventi.models.store.PersistedTask
+import no.iktdev.eventi.models.store.TaskStatus
+import no.iktdev.eventi.tasks.TaskTypeRegistry
 import java.lang.reflect.Type
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
@@ -17,7 +21,7 @@ import java.time.format.DateTimeFormatter
 object ZDS {
     val gson = WGson.gson
 
-    fun Event.toPersisted(id: Long, persistedAt: LocalDateTime): PersistedEvent {
+    fun Event.toPersisted(id: Long, persistedAt: LocalDateTime = LocalDateTime.now()): PersistedEvent {
         val payloadJson = gson.toJson(this)
         val eventName = this::class.simpleName ?: error("Missing class name")
         return PersistedEvent(
@@ -38,6 +42,34 @@ object ZDS {
             ?: error("Unknown event type: $event")
         return gson.fromJson(data, clazz)
     }
+
+    fun Task.toPersisted(id: Long, status: TaskStatus = TaskStatus.Pending, persistedAt: LocalDateTime = LocalDateTime.now()): PersistedTask {
+        val payloadJson = gson.toJson(this)
+        val taskName = this::class.simpleName ?: error("Missing class name")
+        return PersistedTask(
+            id = id,
+            referenceId = referenceId,
+            taskId = taskId,
+            task = taskName,
+            data = payloadJson,
+            status = status,
+            claimed = false,
+            consumed = false,
+            claimedBy = null,
+            lastCheckIn = null,
+            persistedAt = persistedAt
+        )
+    }
+
+    fun PersistedTask.toTask(): Task? {
+        val clazz = TaskTypeRegistry.resolve(task)
+            ?: run {
+                //error("Unknown task type: $task")
+                return null
+            }
+        return gson.fromJson(data, clazz)
+    }
+
 
 
     object WGson {

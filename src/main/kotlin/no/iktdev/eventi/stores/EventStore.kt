@@ -8,6 +8,6 @@ import java.util.UUID
 interface EventStore {
     fun getPersistedEventsAfter(timestamp: LocalDateTime): List<PersistedEvent>
     fun getPersistedEventsFor(referenceId: UUID): List<PersistedEvent>
-    fun save(event: Event)
+    fun persist(event: Event)
 }
 

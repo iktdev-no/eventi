@@ -9,3 +9,6 @@ class StartEvent(): Event() {
 
 class EchoEvent(override var data: String): Event() {
 }
+
+class MarcoEvent(override val data: Boolean): Event() {
+}

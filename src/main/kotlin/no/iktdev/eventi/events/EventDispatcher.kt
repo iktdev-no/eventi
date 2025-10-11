@@ -19,7 +19,7 @@ class EventDispatcher(val eventStore: EventStore) {
                 val result = listener.onEvent(candidate, events)
                 if (result != null) {
 
-                    eventStore.save(result)
+                    eventStore.persist(result)
                     return
                 }
             }

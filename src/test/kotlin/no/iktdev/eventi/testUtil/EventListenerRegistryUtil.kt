@@ -6,7 +6,9 @@ import org.assertj.core.api.Assertions.assertThat
 import java.lang.reflect.Field
 
 fun EventListenerRegistry.wipe() {
-    val field: Field = EventListenerRegistry::class.java.getDeclaredField("listeners")
+    val field: Field = EventListenerRegistry::class.java
+        .superclass
+        .getDeclaredField("listeners")
     field.isAccessible = true
 
     // Tøm map’en

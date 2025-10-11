@@ -1,11 +1,6 @@
 package no.iktdev.eventi.events
 
-object EventListenerRegistry {
-    private val listeners = mutableListOf<EventListener>()
+import no.iktdev.eventi.ListenerRegistryImplementation
 
-    fun registerListener(listener: EventListener) {
-        listeners.add(listener)
-    }
-
-    fun getListeners(): List<EventListener> = listeners.toList()
+object EventListenerRegistry: ListenerRegistryImplementation<EventListener>() {
 }

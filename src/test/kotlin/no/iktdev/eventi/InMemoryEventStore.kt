@@ -17,7 +17,7 @@ class InMemoryEventStore : EventStore {
     override fun getPersistedEventsFor(referenceId: UUID): List<PersistedEvent> =
         persisted.filter { it.referenceId == referenceId }
 
-    override fun save(event: Event) {
+    override fun persist(event: Event) {
         val persistedEvent = event.toPersisted(nextId++, LocalDateTime.now())
         persisted += persistedEvent
     }

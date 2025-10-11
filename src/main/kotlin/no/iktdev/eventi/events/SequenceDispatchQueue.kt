@@ -17,6 +17,10 @@ class SequenceDispatchQueue(
     private val semaphore = Semaphore(maxConcurrency)
     private val active = ConcurrentHashMap.newKeySet<UUID>()
 
+    fun _scope(): CoroutineScope {
+        return scope
+    }
+
     fun isProcessing(referenceId: UUID): Boolean = referenceId in active
 
     fun dispatch(referenceId: UUID, events: List<Event>, dispatcher: EventDispatcher): Job? {

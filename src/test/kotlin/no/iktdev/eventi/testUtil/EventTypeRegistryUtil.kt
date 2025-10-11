@@ -6,7 +6,9 @@ import org.junit.jupiter.api.Assertions.assertNull
 import java.lang.reflect.Field
 
 fun EventTypeRegistry.wipe() {
-    val field: Field = EventTypeRegistry::class.java.getDeclaredField("types")
+    val field: Field = EventTypeRegistry::class.java
+        .superclass
+        .getDeclaredField("types")
     field.isAccessible = true
 
     // Tøm map’en
