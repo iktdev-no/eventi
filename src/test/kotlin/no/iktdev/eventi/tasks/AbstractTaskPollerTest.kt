@@ -57,7 +57,7 @@ class AbstractTaskPollerTest : TestBase() {
     }
 
 
-    open class EchoListener : TaskListener<String>(TaskType.MIXED) {
+    open class EchoListener : TaskListener(TaskType.MIXED) {
         var result: Event? = null
 
         override fun getWorkerId() = this.javaClass.simpleName

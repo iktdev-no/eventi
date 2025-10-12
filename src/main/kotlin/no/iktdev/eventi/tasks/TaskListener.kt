@@ -12,10 +12,10 @@ import kotlin.coroutines.cancellation.CancellationException
 /**
  * Abstract base class for handling tasks with asynchronous processing and reporting.
  *
- * @param T The type of result produced by processing the task.
+
  * @param reporter An instance of [TaskReporter] for reporting task status and events.
  */
-abstract class TaskListener<T>(val taskType: TaskType = TaskType.CPU_INTENSIVE): TaskListenerImplementation {
+abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): TaskListenerImplementation {
 
     init {
         TaskListenerRegistry.registerListener(this)

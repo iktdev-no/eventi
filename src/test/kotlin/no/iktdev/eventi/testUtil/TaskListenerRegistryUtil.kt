@@ -15,7 +15,7 @@ fun TaskListenerRegistry.wipe() {
 
     // Tøm map’en
     val mutableList = field.get(TaskListenerRegistry) as MutableList<*>
-    (mutableList as MutableList<Class<out TaskListener<*>>>).clear()
+    (mutableList as MutableList<Class<out TaskListener>>).clear()
 
     // Verifiser at det er tomt
     assertThat(TaskListenerRegistry.getListeners().isEmpty())
