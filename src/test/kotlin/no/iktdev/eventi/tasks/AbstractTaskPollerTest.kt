@@ -66,7 +66,7 @@ class AbstractTaskPollerTest : TestBase() {
             return task is EchoTask
         }
 
-        override fun onTask(task: Task): String {
+        override suspend fun onTask(task: Task): String {
             if (task is EchoTask) {
                 return task.data + " Potetmos"
             }
