@@ -32,7 +32,7 @@ class ZDSTest {
         val echo = EchoEvent("hello")
         val persisted = echo.toPersisted(id = 1L)
 
-        val restored = persisted.toEvent()
+        val restored = persisted!!.toEvent()
         assert(restored is EchoEvent)
         assert((restored as EchoEvent).data == "hello")
 
@@ -53,7 +53,7 @@ class ZDSTest {
 
         val persisted = task.toPersisted(id = 1L)
 
-        val restored = persisted.toTask()
+        val restored = persisted!!.toTask()
         assert(restored is TestTask)
         assert((restored as TestTask).data == "Potato")
         assert(restored.metadata.created == task.metadata.created)

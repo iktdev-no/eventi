@@ -52,7 +52,7 @@ class EventDispatcherTest: TestBase() {
         assertNotNull(produced)
 
         val event = produced!!.toEvent()
-        assertEquals(trigger.eventId, event.metadata.derivedFromId)
+        assertEquals(trigger.eventId, event!!.metadata.derivedFromId)
         assertTrue(event is DerivedEvent)
     }
 
@@ -62,9 +62,10 @@ class EventDispatcherTest: TestBase() {
 
         val trigger = TriggerEvent()
         val derived = DerivedEvent().derivedOf(trigger).toPersisted(1L, LocalDateTime.now())
-        eventStore.persist(derived.toEvent()) // simulate prior production
 
-        dispatcher.dispatch(trigger.referenceId, listOf(trigger, derived.toEvent()))
+        eventStore.persist(derived!!.toEvent()!!) // simulate prior production
+
+        dispatcher.dispatch(trigger.referenceId, listOf(trigger, derived!!.toEvent()!!))
 
         assertEquals(1, eventStore.all().size) // no new event produced
     }
@@ -86,7 +87,7 @@ class EventDispatcherTest: TestBase() {
 
         val trigger = TriggerEvent()
         dispatcher.dispatch(trigger.referenceId, listOf(trigger))
-        val replayContext = listOf(trigger) + eventStore.all().map { it.toEvent() }
+        val replayContext = listOf(trigger) + eventStore.all().mapNotNull { it.toEvent() }
 
         dispatcher.dispatch(trigger.referenceId, replayContext)
 

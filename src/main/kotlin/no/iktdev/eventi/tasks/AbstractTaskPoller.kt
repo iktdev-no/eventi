@@ -10,7 +10,8 @@ abstract class AbstractTaskPoller(
     private val taskStore: TaskStore,
     private val reporterFactory: (Task) -> TaskReporter
 ) {
-    var backoff = Duration.ofSeconds(2)
+
+    open var backoff = Duration.ofSeconds(2)
         protected set
     private val maxBackoff = Duration.ofMinutes(1)
 

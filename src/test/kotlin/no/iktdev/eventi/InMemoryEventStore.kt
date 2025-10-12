@@ -19,7 +19,7 @@ class InMemoryEventStore : EventStore {
 
     override fun persist(event: Event) {
         val persistedEvent = event.toPersisted(nextId++, LocalDateTime.now())
-        persisted += persistedEvent
+        persisted += persistedEvent!!
     }
 
     fun all(): List<PersistedEvent> = persisted

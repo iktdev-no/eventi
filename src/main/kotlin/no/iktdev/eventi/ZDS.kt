@@ -21,9 +21,12 @@ import java.time.format.DateTimeFormatter
 object ZDS {
     val gson = WGson.gson
 
-    fun Event.toPersisted(id: Long, persistedAt: LocalDateTime = LocalDateTime.now()): PersistedEvent {
+    fun Event.toPersisted(id: Long, persistedAt: LocalDateTime = LocalDateTime.now()): PersistedEvent? {
         val payloadJson = gson.toJson(this)
-        val eventName = this::class.simpleName ?: error("Missing class name")
+        val eventName = this::class.simpleName ?: run {
+            println("Missing class name for event: $this")
+            return null
+        }
         return PersistedEvent(
             id = id,
             referenceId = referenceId,
@@ -37,15 +40,21 @@ object ZDS {
     /**
      * Convert a PersistedEvent back to its original Event type using the event type registry and Gson for deserialization.
      */
-    fun PersistedEvent.toEvent(): Event {
+    fun PersistedEvent.toEvent(): Event? {
         val clazz = EventTypeRegistry.resolve(event)
-            ?: error("Unknown event type: $event")
+            ?: run {
+                println("Missing class name for event: $this")
+                return null
+            }
         return gson.fromJson(data, clazz)
     }
 
-    fun Task.toPersisted(id: Long, status: TaskStatus = TaskStatus.Pending, persistedAt: LocalDateTime = LocalDateTime.now()): PersistedTask {
+    fun Task.toPersisted(id: Long, status: TaskStatus = TaskStatus.Pending, persistedAt: LocalDateTime = LocalDateTime.now()): PersistedTask? {
         val payloadJson = gson.toJson(this)
-        val taskName = this::class.simpleName ?: error("Missing class name")
+        val taskName = this::class.simpleName ?: run {
+            println("Missing class name for task: $this")
+            return null
+        }
         return PersistedTask(
             id = id,
             referenceId = referenceId,

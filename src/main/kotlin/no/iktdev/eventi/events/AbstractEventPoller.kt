@@ -14,8 +14,8 @@ abstract class AbstractEventPoller(
     private val dispatcher: EventDispatcher
 ) {
     var lastSeenTime: LocalDateTime = LocalDateTime.MIN
-    var backoff = Duration.ofSeconds(2)
-        private set
+    open var backoff = Duration.ofSeconds(2)
+        protected set
     private val maxBackoff = Duration.ofMinutes(1)
 
 
@@ -42,7 +42,7 @@ abstract class AbstractEventPoller(
             if (dispatchQueue.isProcessing(referenceId)) continue
 
             val fullLog = eventStore.getPersistedEventsFor(referenceId)
-            val events = fullLog.map { it.toEvent() }
+            val events = fullLog.mapNotNull { it.toEvent() }
 
             dispatchQueue.dispatch(referenceId, events, dispatcher)
             lastSeenTime = fullLog.maxOf { it.persistedAt }

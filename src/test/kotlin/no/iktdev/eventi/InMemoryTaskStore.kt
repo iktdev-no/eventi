@@ -15,7 +15,7 @@ open class InMemoryTaskStore : TaskStore {
 
     override fun persist(task: Task) {
         val persistedTask = task.toPersisted(nextId++)
-        tasks += persistedTask
+        tasks += persistedTask!!
     }
 
     override fun findByTaskId(taskId: UUID) = tasks.find { it.taskId == taskId }
