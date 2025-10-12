@@ -11,13 +11,16 @@ abstract class Task {
     var metadata: Metadata = Metadata()
         protected set
 
-    fun newReferenceId() = apply {
-        this.referenceId = UUID.randomUUID()
+
+    protected open fun <T : Task> self(): T = this as T
+
+    fun newReferenceId() = self<Task>().apply {
+        referenceId = UUID.randomUUID()
     }
 
-    fun derivedOf(event: Event) = apply {
-        this.referenceId = event.referenceId
-        this.metadata = Metadata(derivedFromId = event.eventId)
+    fun derivedOf(event: Event) = self<Task>().apply {
+        referenceId = event.referenceId
+        metadata = Metadata(derivedFromId = event.eventId)
     }
 }
 

@@ -2,6 +2,7 @@ package no.iktdev.eventi.models
 
 import java.util.UUID
 
+@Suppress("UNCHECKED_CAST")
 abstract class Event {
     var referenceId: UUID = UUID.randomUUID()
         protected set
@@ -10,22 +11,24 @@ abstract class Event {
     var metadata: Metadata = Metadata()
         protected set
 
-    fun derivedOf(event: Event) = apply {
-        this.referenceId = event.referenceId
-        this.metadata = Metadata(derivedFromId = event.eventId)
+    protected open fun <T : Event> self(): T = this as T
+
+    fun producedFrom(task: Task): Event = self<Event>().apply {
+        referenceId = task.referenceId
+        metadata = Metadata(derivedFromId = task.taskId)
     }
 
-    fun producedFrom(task: Task) = apply {
-        this.referenceId = task.referenceId
-        this.metadata = Metadata(derivedFromId = task.taskId)
+    fun derivedOf(event: Event) = self<Event>().apply {
+        referenceId = event.referenceId
+        metadata = Metadata(derivedFromId = event.eventId)
     }
 
-    fun newReferenceId() = apply {
-        this.referenceId = UUID.randomUUID()
+    fun newReferenceId() = self<Event>().apply {
+        referenceId = UUID.randomUUID()
     }
 
-    fun usingReferenceId(refId: UUID) = apply {
-        this.referenceId = refId
+    fun usingReferenceId(refId: UUID) = self<Event>().apply {
+        referenceId = refId
     }
 }
 
