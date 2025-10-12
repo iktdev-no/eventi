@@ -91,7 +91,7 @@ enum class TaskType {
 interface TaskListenerImplementation<T> {
     fun supports(task: Task): Boolean
     fun accept(task: Task, reporter: TaskReporter): Boolean
-    fun onTask(task: Task): T
+    suspend fun onTask(task: Task): T
     fun onComplete(task: Task, result: T?)
     fun onError(task: Task, exception: Exception)
     fun onCancelled()
