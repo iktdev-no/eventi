@@ -27,11 +27,15 @@ abstract class Event {
     fun usingReferenceId(refId: UUID) = apply {
         this.referenceId = refId
     }
+}
 
+inline fun <reified T> Event.requireAs(): T {
+    return this as? T ?: throw IllegalArgumentException("Expected ${T::class.java.name}, got ${this::class.java.name}")
 }
 
 abstract class DeleteEvent: Event() {
     open lateinit var deletedEventId: UUID
 }
+
 
 

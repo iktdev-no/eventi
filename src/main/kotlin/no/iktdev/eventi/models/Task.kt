@@ -20,3 +20,7 @@ abstract class Task {
         this.metadata = Metadata(derivedFromId = event.eventId)
     }
 }
+
+inline fun <reified T> Task.requireAs(): T {
+    return this as? T ?: throw IllegalArgumentException("Expected ${T::class.java.name}, got ${this::class.java.name}")
+}
