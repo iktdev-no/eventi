@@ -58,7 +58,7 @@ class AbstractTaskPollerTest : TestBase() {
 
 
     open class EchoListener : TaskListener<String>(TaskType.MIXED) {
-        var result: String? = null
+        var result: Event? = null
 
         override fun getWorkerId() = this.javaClass.simpleName
 
@@ -66,17 +66,17 @@ class AbstractTaskPollerTest : TestBase() {
             return task is EchoTask
         }
 
-        override suspend fun onTask(task: Task): String {
+        override suspend fun onTask(task: Task): Event {
             if (task is EchoTask) {
-                return task.data + " Potetmos"
+                return EchoEvent(task.data + " Potetmos").producedFrom(task)
             }
             throw IllegalArgumentException("Unsupported task type: ${task::class.java}")
         }
 
-        override fun onComplete(task: Task, result: String?) {
+        override fun onComplete(task: Task, result: Event?) {
             super.onComplete(task, result)
             this.result = result;
-            reporter?.publishEvent(EchoEvent(result!!).producedFrom(task))
+            reporter?.publishEvent(result!!)
         }
 
     }
@@ -99,7 +99,7 @@ class AbstractTaskPollerTest : TestBase() {
         val producedEvent = eventDeferred.await()
         assertThat(producedEvent).isNotNull
         assertThat(producedEvent!!.metadata.derivedFromId).isEqualTo(task.taskId)
-        assertThat(listener.result).isEqualTo("Hello Potetmos")
+        assertThat((listener.result as EchoEvent).data).isEqualTo("Hello Potetmos")
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
@@ -120,7 +120,7 @@ class AbstractTaskPollerTest : TestBase() {
         advanceUntilIdle()
 
         assertEquals(initialBackoff, poller.backoff)
-        assertEquals("Hello Potetmos", listener.result)
+        assertEquals("Hello Potetmos", (listener.result as EchoEvent).data)
     }
 
     @Test

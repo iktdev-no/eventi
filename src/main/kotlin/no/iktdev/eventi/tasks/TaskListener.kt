@@ -15,7 +15,7 @@ import kotlin.coroutines.cancellation.CancellationException
  * @param T The type of result produced by processing the task.
  * @param reporter An instance of [TaskReporter] for reporting task status and events.
  */
-abstract class TaskListener<T>(val taskType: TaskType = TaskType.CPU_INTENSIVE): TaskListenerImplementation<T> {
+abstract class TaskListener<T>(val taskType: TaskType = TaskType.CPU_INTENSIVE): TaskListenerImplementation {
 
     init {
         TaskListenerRegistry.registerListener(this)
@@ -69,9 +69,12 @@ abstract class TaskListener<T>(val taskType: TaskType = TaskType.CPU_INTENSIVE):
         reporter?.markConsumed(task.taskId)
     }
 
-    override fun onComplete(task: Task, result: T?) {
-        reporter?.markConsumed(task.taskId)
-        reporter?.log(task.taskId, "Task completed successfully.")
+    override fun onComplete(task: Task, result: Event?) {
+        reporter!!.markConsumed(task.taskId)
+        reporter!!.log(task.taskId, "Task completed successfully.")
+        result?.let {
+            reporter!!.publishEvent(result)
+        }
     }
 
     override fun onCancelled() {
@@ -88,11 +91,11 @@ enum class TaskType {
 }
 
 
-interface TaskListenerImplementation<T> {
+interface TaskListenerImplementation {
     fun supports(task: Task): Boolean
     fun accept(task: Task, reporter: TaskReporter): Boolean
-    suspend fun onTask(task: Task): T
-    fun onComplete(task: Task, result: T?)
+    suspend fun onTask(task: Task): Event?
+    fun onComplete(task: Task, result: Event?)
     fun onError(task: Task, exception: Exception)
     fun onCancelled()
 }
