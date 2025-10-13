@@ -21,7 +21,8 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
         TaskListenerRegistry.registerListener(this)
     }
 
-    abstract var reporter: TaskReporter?
+    var reporter: TaskReporter? = null
+        private set
     abstract fun getWorkerId(): String
     protected var currentJob: Job? = null
     var currentTask: Task? = null
