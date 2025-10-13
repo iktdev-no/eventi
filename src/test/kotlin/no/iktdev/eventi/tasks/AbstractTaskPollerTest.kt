@@ -2,9 +2,14 @@ package no.iktdev.eventi.tasks
 
 import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
 import no.iktdev.eventi.InMemoryTaskStore
 import no.iktdev.eventi.TestBase
 import no.iktdev.eventi.events.EventListener
@@ -20,6 +25,10 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.Duration
 import java.util.UUID
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.minutes
+import kotlin.time.Duration.Companion.nanoseconds
+import kotlin.time.Duration.Companion.seconds
 
 class AbstractTaskPollerTest : TestBase() {
 
@@ -60,6 +69,8 @@ class AbstractTaskPollerTest : TestBase() {
     open class EchoListener : TaskListener(TaskType.MIXED) {
         var result: Event? = null
 
+        fun getJob() = currentJob
+
         override fun getWorkerId() = this.javaClass.simpleName
 
         override fun supports(task: Task): Boolean {
@@ -67,6 +78,9 @@ class AbstractTaskPollerTest : TestBase() {
         }
 
         override suspend fun onTask(task: Task): Event {
+            withHeartbeatRunner(1.seconds) {
+                println("Heartbeat")
+            }
             if (task is EchoTask) {
                 return EchoEvent(task.data + " Potetmos").producedFrom(task)
             }
@@ -77,6 +91,15 @@ class AbstractTaskPollerTest : TestBase() {
             super.onComplete(task, result)
             this.result = result;
             reporter?.publishEvent(result!!)
+        }
+
+        override fun onError(task: Task, exception: Exception) {
+            exception.printStackTrace()
+            super.onError(task, exception)
+        }
+
+        override fun onCancelled() {
+            super.onCancelled()
         }
 
     }
@@ -118,6 +141,9 @@ class AbstractTaskPollerTest : TestBase() {
         taskStore.persist(task)
 
         poller.pollOnce()
+
+        listener.getJob()?.join()
+        advanceTimeBy(1.minutes)
         advanceUntilIdle()
 
         assertEquals(initialBackoff, poller.backoff)

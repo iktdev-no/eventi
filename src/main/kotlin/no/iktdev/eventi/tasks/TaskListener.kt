@@ -3,11 +3,16 @@ package no.iktdev.eventi.tasks
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Task
 import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.minutes
 
 /**
  * Abstract base class for handling tasks with asynchronous processing and reporting.
@@ -39,6 +44,16 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
         }
     }
 
+    private var heartbeatRunner: Job? = null
+    suspend fun withHeartbeatRunner(interval: Duration = 5.minutes, block: () -> Unit): Job {
+        return CoroutineScope(currentCoroutineContext()).launch {
+            while (isActive) {
+                block()
+                delay(interval)
+            }
+        }.also { heartbeatRunner = it }
+    }
+
     override fun accept(task: Task, reporter: TaskReporter): Boolean {
         if (isBusy || !supports(task)) return false
         this.reporter = reporter
@@ -55,6 +70,8 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
             } catch (e: Exception) {
                 onError(task, e)
             } finally {
+                heartbeatRunner?.cancel()
+                heartbeatRunner = null
                 currentJob = null
                 currentTask = null
                 this@TaskListener.reporter = null
