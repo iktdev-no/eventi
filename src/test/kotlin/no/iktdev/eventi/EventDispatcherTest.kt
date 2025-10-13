@@ -9,6 +9,7 @@ import no.iktdev.eventi.events.EventTypeRegistry
 import no.iktdev.eventi.models.DeleteEvent
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.testUtil.wipe
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
@@ -52,7 +53,8 @@ class EventDispatcherTest: TestBase() {
         assertNotNull(produced)
 
         val event = produced!!.toEvent()
-        assertEquals(trigger.eventId, event!!.metadata.derivedFromId)
+        assertThat(event!!.metadata.derivedFromId).hasSize(1)
+        assertThat(event!!.metadata.derivedFromId).contains(trigger.eventId)
         assertTrue(event is DerivedEvent)
     }
 

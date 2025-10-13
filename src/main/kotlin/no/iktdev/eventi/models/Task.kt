@@ -20,7 +20,7 @@ abstract class Task {
 
     fun derivedOf(event: Event) = self<Task>().apply {
         referenceId = event.referenceId
-        metadata = Metadata(derivedFromId = event.eventId)
+        metadata = Metadata().derivedFromEventId(event.eventId)
     }
 }
 

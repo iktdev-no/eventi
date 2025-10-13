@@ -15,12 +15,12 @@ abstract class Event {
 
     fun producedFrom(task: Task): Event = self<Event>().apply {
         referenceId = task.referenceId
-        metadata = Metadata(derivedFromId = task.taskId)
+        metadata = Metadata().derivedFromEventId(task.taskId)
     }
 
-    fun derivedOf(event: Event) = self<Event>().apply {
-        referenceId = event.referenceId
-        metadata = Metadata(derivedFromId = event.eventId)
+    fun derivedOf(vararg event: Event) = self<Event>().apply {
+        referenceId = event.first().referenceId
+        metadata = Metadata().derivedFromEventId(*event.map { it.eventId }.toTypedArray())
     }
 
     fun newReferenceId() = self<Event>().apply {

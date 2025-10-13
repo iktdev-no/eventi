@@ -8,7 +8,7 @@ import java.util.UUID
 class EventDispatcher(val eventStore: EventStore) {
 
     fun dispatch(referenceId: UUID, events: List<Event>) {
-        val derivedFromIds = events.mapNotNull { it.metadata.derivedFromId }.toSet()
+        val derivedFromIds = events.mapNotNull { it.metadata.derivedFromId }.flatten().toSet()
         val deletedEventIds = events.filterIsInstance<DeleteEvent>().map { it.deletedEventId }
         val candidates = events
             .filter { it.eventId !in derivedFromIds }
