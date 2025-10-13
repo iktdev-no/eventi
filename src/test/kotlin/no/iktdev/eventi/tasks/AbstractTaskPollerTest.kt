@@ -1,13 +1,11 @@
 package no.iktdev.eventi.tasks
 
-import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import no.iktdev.eventi.InMemoryTaskStore
 import no.iktdev.eventi.TestBase
-import no.iktdev.eventi.events.EventListener
 import no.iktdev.eventi.events.EventTypeRegistry
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Task
@@ -60,6 +58,8 @@ class AbstractTaskPollerTest : TestBase() {
     open class EchoListener : TaskListener(TaskType.MIXED) {
         var result: Event? = null
 
+        override var reporter: TaskReporter? = null
+
         override fun getWorkerId() = this.javaClass.simpleName
 
         override fun supports(task: Task): Boolean {
@@ -98,7 +98,7 @@ class AbstractTaskPollerTest : TestBase() {
         advanceUntilIdle()
         val producedEvent = eventDeferred.await()
         assertThat(producedEvent).isNotNull
-        assertThat(producedEvent!!.metadata.derivedFromId).isEqualTo(task.taskId)
+        assertThat(producedEvent.metadata.derivedFromId).isEqualTo(task.taskId)
         assertThat((listener.result as EchoEvent).data).isEqualTo("Hello Potetmos")
     }
 
