@@ -115,14 +115,14 @@ class AbstractTaskPollerTest : TestBase() {
 
         val poller = object : AbstractTaskPoller(taskStore, reporterFactory) {}
 
-        val task = EchoTask("Hello").newReferenceId()
+        val task = EchoTask("Hello").newReferenceId().derivedOf(object : Event() {})
         taskStore.persist(task)
         poller.pollOnce()
         advanceUntilIdle()
         val producedEvent = eventDeferred.await()
         assertThat(producedEvent).isNotNull
         assertThat(producedEvent.metadata.derivedFromId).hasSize(1)
-        assertThat(producedEvent.metadata.derivedFromId).contains(task.taskId)
+        assertThat(producedEvent.metadata.derivedFromId).contains(task.metadata.derivedFromId!!.first())
         assertThat((listener.result as EchoEvent).data).isEqualTo("Hello Potetmos")
     }
 
