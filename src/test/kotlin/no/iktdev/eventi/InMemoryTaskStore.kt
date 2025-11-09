@@ -8,6 +8,7 @@ import no.iktdev.eventi.stores.TaskStore
 import java.time.Duration
 import java.time.LocalDateTime
 import java.util.UUID
+import kotlin.concurrent.atomics.AtomicReference
 
 open class InMemoryTaskStore : TaskStore {
     private val tasks = mutableListOf<PersistedTask>()
@@ -20,8 +21,8 @@ open class InMemoryTaskStore : TaskStore {
 
     override fun findByTaskId(taskId: UUID) = tasks.find { it.taskId == taskId }
 
-    override fun findByEventId(eventId: UUID) =
-        tasks.filter { it.data.contains(eventId.toString()) }
+    override fun findByReferenceId(referenceId: UUID) =
+        tasks.filter { it.referenceId == referenceId }
 
     override fun findUnclaimed(referenceId: UUID) =
         tasks.filter { it.referenceId == referenceId && !it.claimed && !it.consumed }

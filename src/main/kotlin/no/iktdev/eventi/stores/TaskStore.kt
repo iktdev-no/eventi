@@ -9,7 +9,7 @@ interface TaskStore {
     fun persist(task: Task)
 
     fun findByTaskId(taskId: UUID): PersistedTask?
-    fun findByEventId(eventId: UUID): List<PersistedTask>
+    fun findByReferenceId(referenceId: UUID): List<PersistedTask>
     fun findUnclaimed(referenceId: UUID): List<PersistedTask>
 
     fun claim(taskId: UUID, workerId: String): Boolean
