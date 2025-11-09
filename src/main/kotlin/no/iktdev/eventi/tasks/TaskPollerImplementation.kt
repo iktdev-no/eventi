@@ -6,7 +6,7 @@ import no.iktdev.eventi.models.Task
 import no.iktdev.eventi.stores.TaskStore
 import java.time.Duration
 
-abstract class AbstractTaskPoller(
+abstract class TaskPollerImplementation(
     private val taskStore: TaskStore,
     private val reporterFactory: (Task) -> TaskReporter
 ) {
@@ -15,7 +15,7 @@ abstract class AbstractTaskPoller(
         protected set
     private val maxBackoff = Duration.ofMinutes(1)
 
-    suspend fun start() {
+    open suspend fun start() {
         while (true) {
             pollOnce()
         }

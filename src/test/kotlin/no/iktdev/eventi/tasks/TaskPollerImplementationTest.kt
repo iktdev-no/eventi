@@ -1,18 +1,12 @@
 package no.iktdev.eventi.tasks
 
-import io.mockk.mockk
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.test.setMain
 import no.iktdev.eventi.InMemoryTaskStore
 import no.iktdev.eventi.TestBase
-import no.iktdev.eventi.events.EventListener
 import no.iktdev.eventi.events.EventTypeRegistry
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Task
@@ -25,12 +19,10 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.Duration
 import java.util.UUID
-import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.minutes
-import kotlin.time.Duration.Companion.nanoseconds
 import kotlin.time.Duration.Companion.seconds
 
-class AbstractTaskPollerTest : TestBase() {
+class TaskPollerImplementationTest : TestBase() {
 
     @BeforeEach
     fun setup() {
@@ -59,7 +51,7 @@ class AbstractTaskPollerTest : TestBase() {
     data class EchoEvent(var data: String) : Event() {
     }
 
-    class TaskPollerTest(taskStore: TaskStore, reporterFactory: (Task) -> TaskReporter): AbstractTaskPoller(taskStore, reporterFactory) {
+    class TaskPollerImplementationTest(taskStore: TaskStore, reporterFactory: (Task) -> TaskReporter): TaskPollerImplementation(taskStore, reporterFactory) {
         fun overrideSetBackoff(duration: java.time.Duration) {
             backoff = duration
         }
@@ -113,7 +105,7 @@ class AbstractTaskPollerTest : TestBase() {
 
         val listener = EchoListener()
 
-        val poller = object : AbstractTaskPoller(taskStore, reporterFactory) {}
+        val poller = object : TaskPollerImplementation(taskStore, reporterFactory) {}
 
         val task = EchoTask("Hello").newReferenceId().derivedOf(object : Event() {})
         taskStore.persist(task)
@@ -133,7 +125,7 @@ class AbstractTaskPollerTest : TestBase() {
         EventTypeRegistry.register(EchoEvent::class.java)
 
         val listener = EchoListener()
-        val poller = TaskPollerTest(taskStore, reporterFactory)
+        val poller = TaskPollerImplementationTest(taskStore, reporterFactory)
         val initialBackoff = poller.backoff
 
         poller.overrideSetBackoff(Duration.ofSeconds(16))
@@ -152,7 +144,7 @@ class AbstractTaskPollerTest : TestBase() {
 
     @Test
     fun `poller increases backoff when no tasks`() = runTest {
-        val poller = object : AbstractTaskPoller(taskStore, reporterFactory) {}
+        val poller = object : TaskPollerImplementation(taskStore, reporterFactory) {}
         val initialBackoff = poller.backoff
         val totalBackoff = initialBackoff.multiply(2)
 
@@ -164,7 +156,7 @@ class AbstractTaskPollerTest : TestBase() {
 
     @Test
     fun `poller increases backoff when no listener supports task`() = runTest {
-        val poller = object : AbstractTaskPoller(taskStore, reporterFactory) {}
+        val poller = object : TaskPollerImplementation(taskStore, reporterFactory) {}
         val initialBackoff = poller.backoff
 
         // as long as the task is not added to registry this will be unsupported
@@ -182,7 +174,7 @@ class AbstractTaskPollerTest : TestBase() {
             override val isBusy = true
         }
 
-        val poller = object : AbstractTaskPoller(taskStore, reporterFactory) {}
+        val poller = object : TaskPollerImplementation(taskStore, reporterFactory) {}
         val intialBackoff = poller.backoff
 
         val task = EchoTask("Busy").newReferenceId()
@@ -204,7 +196,7 @@ class AbstractTaskPollerTest : TestBase() {
         val failingStore = object : InMemoryTaskStore() {
             override fun claim(taskId: UUID, workerId: String): Boolean = false
         }
-        val pollerWithFailingClaim = object : AbstractTaskPoller(failingStore, reporterFactory) {}
+        val pollerWithFailingClaim = object : TaskPollerImplementation(failingStore, reporterFactory) {}
         val initialBackoff = pollerWithFailingClaim.backoff
 
         failingStore.persist(task)

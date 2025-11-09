@@ -5,10 +5,9 @@ import no.iktdev.eventi.ZDS.toEvent
 import no.iktdev.eventi.stores.EventStore
 import java.time.Duration
 import java.time.LocalDateTime
-import java.util.UUID
 import kotlin.collections.iterator
 
-abstract class AbstractEventPoller(
+abstract class EventPollerImplementation(
     private val eventStore: EventStore,
     private val dispatchQueue: SequenceDispatchQueue,
     private val dispatcher: EventDispatcher
@@ -19,7 +18,7 @@ abstract class AbstractEventPoller(
     private val maxBackoff = Duration.ofMinutes(1)
 
 
-    suspend fun start() {
+    open suspend fun start() {
         while (true) {
             pollOnce()
         }

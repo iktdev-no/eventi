@@ -3,14 +3,8 @@ package no.iktdev.eventi.events
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.isActive
-import kotlinx.coroutines.job
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -20,24 +14,22 @@ import no.iktdev.eventi.EventDispatcherTest.OtherEvent
 import no.iktdev.eventi.EventDispatcherTest.TriggerEvent
 import no.iktdev.eventi.TestBase
 import no.iktdev.eventi.models.Event
-import no.iktdev.eventi.stores.EventStore
 import no.iktdev.eventi.testUtil.wipe
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import sun.rmi.transport.DGCAckHandler.received
 import java.time.Duration
 import java.time.LocalDateTime
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
-class AbstractEventPollerTest : TestBase() {
+class EventPollerImplementationTest : TestBase() {
     val dispatcher = EventDispatcher(eventStore)
     val queue = SequenceDispatchQueue(maxConcurrency = 8)
 
-    val poller = object : AbstractEventPoller(eventStore, queue, dispatcher) {}
+    val poller = object : EventPollerImplementation(eventStore, queue, dispatcher) {}
 
     @BeforeEach
     fun setup() {
@@ -83,7 +75,7 @@ class AbstractEventPollerTest : TestBase() {
 
     @Test
     fun `pollOnce should increase backoff when no events and reset when events arrive`() = runTest {
-        val testPoller = object : AbstractEventPoller(eventStore, queue, dispatcher) {
+        val testPoller = object : EventPollerImplementation(eventStore, queue, dispatcher) {
             fun currentBackoff(): Duration = backoff
         }
 
@@ -143,7 +135,7 @@ class AbstractEventPollerTest : TestBase() {
         val refId = UUID.randomUUID()
         val ignored = TriggerEvent().usingReferenceId(refId)
 
-        val testPoller = object : AbstractEventPoller(eventStore, queue, dispatcher) {
+        val testPoller = object : EventPollerImplementation(eventStore, queue, dispatcher) {
             init {
                 lastSeenTime = LocalDateTime.now().plusSeconds(1)
             }
@@ -176,7 +168,7 @@ class AbstractEventPollerTest : TestBase() {
             }
         }
 
-        val poller = object : AbstractEventPoller(eventStore, queue, dispatcher) {
+        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher) {
         }
 
         // Original event
