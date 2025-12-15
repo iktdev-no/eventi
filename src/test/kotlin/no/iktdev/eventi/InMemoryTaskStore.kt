@@ -39,9 +39,9 @@ open class InMemoryTaskStore : TaskStore {
         update(task.copy(lastCheckIn = LocalDateTime.now()))
     }
 
-    override fun markConsumed(taskId: UUID) {
+    override fun markConsumed(taskId: UUID, status: TaskStatus) {
         val task = findByTaskId(taskId) ?: return
-        update(task.copy(consumed = true, status = TaskStatus.Completed))
+        update(task.copy(consumed = true, status = status))
     }
 
     override fun releaseExpiredTasks(timeout: Duration) {
