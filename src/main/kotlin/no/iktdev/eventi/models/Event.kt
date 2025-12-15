@@ -15,8 +15,10 @@ abstract class Event {
 
     fun producedFrom(task: Task): Event = self<Event>().apply {
         referenceId = task.referenceId
-        val derivedIds = task.metadata.derivedFromId ?: emptySet()
-        metadata = Metadata().derivedFromEventId(derivedIds)
+        val derivedFromIds: MutableList<UUID> = mutableListOf()
+        task.metadata.derivedFromId?.let { derivedFromIds.addAll(it) }
+        derivedFromIds.add(task.taskId)
+        metadata = Metadata().derivedFromEventId(derivedFromIds.toSet())
     }
 
     fun derivedOf(vararg event: Event) = self<Event>().apply {

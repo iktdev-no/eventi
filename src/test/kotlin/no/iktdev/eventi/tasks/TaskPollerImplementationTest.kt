@@ -113,8 +113,9 @@ class TaskPollerImplementationTest : TestBase() {
         advanceUntilIdle()
         val producedEvent = eventDeferred.await()
         assertThat(producedEvent).isNotNull
-        assertThat(producedEvent.metadata.derivedFromId).hasSize(1)
+        assertThat(producedEvent.metadata.derivedFromId).hasSize(2)
         assertThat(producedEvent.metadata.derivedFromId).contains(task.metadata.derivedFromId!!.first())
+        assertThat(producedEvent.metadata.derivedFromId).contains(task.taskId)
         assertThat((listener.result as EchoEvent).data).isEqualTo("Hello Potetmos")
     }
 

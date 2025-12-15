@@ -22,6 +22,10 @@ abstract class Task {
         referenceId = event.referenceId
         metadata = Metadata().derivedFromEventId(event.eventId)
     }
+
+    fun usingReferenceId(refId: UUID) = self<Task>().apply {
+        referenceId = refId
+    }
 }
 
 inline fun <reified T> Task.requireAs(): T {
