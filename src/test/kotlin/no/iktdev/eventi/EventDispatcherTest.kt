@@ -8,6 +8,7 @@ import no.iktdev.eventi.events.EventListenerRegistry
 import no.iktdev.eventi.events.EventTypeRegistry
 import no.iktdev.eventi.models.DeleteEvent
 import no.iktdev.eventi.models.Event
+import no.iktdev.eventi.models.Metadata
 import no.iktdev.eventi.testUtil.wipe
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import java.time.LocalDateTime
 import java.util.UUID
@@ -26,6 +28,11 @@ class EventDispatcherTest: TestBase() {
     class TriggerEvent(): Event() {
     }
     class OtherEvent(): Event()
+    class DummyEvent(): Event() {
+        fun putMetadata(metadata: Metadata) {
+            this.metadata = metadata
+        }
+    }
 
 
     @BeforeEach
@@ -37,7 +44,8 @@ class EventDispatcherTest: TestBase() {
         EventTypeRegistry.register(listOf(
             DerivedEvent::class.java,
             TriggerEvent::class.java,
-            OtherEvent::class.java
+            OtherEvent::class.java,
+            DummyEvent::class.java
         ))
     }
 
@@ -144,6 +152,30 @@ class EventDispatcherTest: TestBase() {
         dispatcher.dispatch(deleted.referenceId, listOf(deleted))
 
         assertTrue(received.contains(deleted))
+    }
+
+    @Test
+    @DisplayName("Replay skal ikke levere en event som allerede har avledet en ny")
+    fun `should not re-deliver events that have produced derived events`() {
+        val listener = ProducingListener()
+
+        val trigger = TriggerEvent()
+        // Første dispatch: trigger produserer en DerivedEvent
+        dispatcher.dispatch(trigger.referenceId, listOf(trigger))
+
+        val produced = eventStore.all().mapNotNull { it.toEvent() }
+        assertEquals(1, produced.size)
+        val derived = produced.first()
+        assertTrue(derived is DerivedEvent)
+
+        // Replay: nå har vi både trigger og derived i konteksten
+        val replayContext = listOf(trigger, derived)
+        dispatcher.dispatch(trigger.referenceId, replayContext)
+
+        // Verifiser at ingen nye events ble produsert
+        assertEquals(1, eventStore.all().size) {
+            "TriggerEvent skal ikke leveres som kandidat igjen når den allerede har avledet en DerivedEvent"
+        }
     }
 
 

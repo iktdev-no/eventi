@@ -7,5 +7,5 @@ abstract class ListenerRegistryImplementation<T> {
         listeners.add(listener)
     }
 
-    fun getListeners(): List<T> = listeners.toList()
+    open fun getListeners(): List<T> = listeners.toList()
 }
