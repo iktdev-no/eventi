@@ -3,12 +3,14 @@ package no.iktdev.eventi.tasks
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Task
+import org.jetbrains.annotations.VisibleForTesting
 import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
 import kotlin.time.Duration
@@ -29,7 +31,8 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
     var reporter: TaskReporter? = null
         private set
     abstract fun getWorkerId(): String
-    protected var currentJob: Job? = null
+    var currentJob: Job? = null
+        protected set
     var currentTask: Task? = null
         private set
 
@@ -44,9 +47,11 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
         }
     }
 
-    private var heartbeatRunner: Job? = null
-    suspend fun withHeartbeatRunner(interval: Duration = 5.minutes, block: () -> Unit): Job {
-        return CoroutineScope(currentCoroutineContext()).launch {
+    private val heartbeatScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+    @VisibleForTesting
+    internal var heartbeatRunner: Job? = null
+    fun withHeartbeatRunner(interval: Duration = 5.minutes, block: () -> Unit): Job {
+        return heartbeatScope.launch {
             while (isActive) {
                 block()
                 delay(interval)
@@ -71,6 +76,7 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
                 onError(task, e)
             } finally {
                 heartbeatRunner?.cancel()
+                currentJob?.cancel()
                 heartbeatRunner = null
                 currentJob = null
                 currentTask = null
@@ -96,7 +102,7 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
 
     override fun onCancelled() {
         currentJob?.cancel()
-        currentJob = null
+        heartbeatRunner?.cancel()
         currentTask = null
     }
 }
