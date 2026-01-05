@@ -12,7 +12,7 @@ abstract class EventPollerImplementation(
     private val dispatchQueue: SequenceDispatchQueue,
     private val dispatcher: EventDispatcher
 ) {
-    var lastSeenTime: LocalDateTime = LocalDateTime.MIN
+    var lastSeenTime: LocalDateTime = LocalDateTime.of(1970, 1, 1, 0, 0)
     open var backoff = Duration.ofSeconds(2)
         protected set
     private val maxBackoff = Duration.ofMinutes(1)
