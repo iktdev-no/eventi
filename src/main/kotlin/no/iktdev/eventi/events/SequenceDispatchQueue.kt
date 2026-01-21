@@ -33,6 +33,7 @@ class SequenceDispatchQueue(
                     dispatcher.dispatch(referenceId, events)
                 } catch (e: Exception) {
                     println("Dispatch failed for $referenceId: ${e.message}")
+                    e.printStackTrace()
                 } finally {
                     semaphore.release()
                 }
