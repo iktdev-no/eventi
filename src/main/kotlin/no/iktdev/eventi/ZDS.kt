@@ -24,8 +24,7 @@ object ZDS {
     fun Event.toPersisted(id: Long, persistedAt: LocalDateTime = LocalDateTime.now()): PersistedEvent? {
         val payloadJson = gson.toJson(this)
         val eventName = this::class.simpleName ?: run {
-            println("Missing class name for event: $this")
-            return null
+            throw IllegalStateException("Missing class name for event: $this")
         }
         return PersistedEvent(
             id = id,
@@ -43,8 +42,7 @@ object ZDS {
     fun PersistedEvent.toEvent(): Event? {
         val clazz = EventTypeRegistry.resolve(event)
             ?: run {
-                println("Missing class name for event: $this")
-                return null
+                throw IllegalStateException("Missing class name for event: $this")
             }
         return gson.fromJson(data, clazz)
     }
@@ -52,8 +50,7 @@ object ZDS {
     fun Task.toPersisted(id: Long, status: TaskStatus = TaskStatus.Pending, persistedAt: LocalDateTime = LocalDateTime.now()): PersistedTask? {
         val payloadJson = gson.toJson(this)
         val taskName = this::class.simpleName ?: run {
-            println("Missing class name for task: $this")
-            return null
+            throw IllegalStateException("Missing class name for task: $this")
         }
         return PersistedTask(
             id = id,
