@@ -18,9 +18,7 @@ class EventDispatcher(val eventStore: EventStore) {
             for (candidate in candidates) {
                 val result = listener.onEvent(candidate, events)
                 if (result != null) {
-
                     eventStore.persist(result)
-                    return
                 }
             }
         }
