@@ -2,6 +2,7 @@ package no.iktdev.eventi.events
 
 import kotlinx.coroutines.delay
 import mu.KotlinLogging
+import no.iktdev.eventi.MyTime
 import no.iktdev.eventi.ZDS.toEvent
 import no.iktdev.eventi.stores.EventStore
 import java.time.Duration
@@ -33,7 +34,7 @@ abstract class EventPollerImplementation(
     }
 
     suspend fun pollOnce() {
-        val pollStartedAt = LocalDateTime.now()
+        val pollStartedAt = MyTime.UtcNow()
         log.debug { "Polling for new events" }
         val newPersisted = eventStore.getPersistedEventsAfter(lastSeenTime)
 

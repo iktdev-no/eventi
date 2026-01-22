@@ -21,7 +21,7 @@ import java.time.format.DateTimeFormatter
 object ZDS {
     val gson = WGson.gson
 
-    fun Event.toPersisted(id: Long, persistedAt: LocalDateTime = LocalDateTime.now()): PersistedEvent? {
+    fun Event.toPersisted(id: Long, persistedAt: LocalDateTime = MyTime.UtcNow()): PersistedEvent? {
         val payloadJson = gson.toJson(this)
         val eventName = this::class.simpleName ?: run {
             throw IllegalStateException("Missing class name for event: $this")
@@ -47,7 +47,7 @@ object ZDS {
         return gson.fromJson(data, clazz)
     }
 
-    fun Task.toPersisted(id: Long, status: TaskStatus = TaskStatus.Pending, persistedAt: LocalDateTime = LocalDateTime.now()): PersistedTask? {
+    fun Task.toPersisted(id: Long, status: TaskStatus = TaskStatus.Pending, persistedAt: LocalDateTime = MyTime.UtcNow()): PersistedTask? {
         val payloadJson = gson.toJson(this)
         val taskName = this::class.simpleName ?: run {
             throw IllegalStateException("Missing class name for task: $this")
