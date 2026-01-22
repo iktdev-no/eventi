@@ -71,7 +71,7 @@ class EventDispatcherTest: TestBase() {
         val listener = ProducingListener()
 
         val trigger = TriggerEvent()
-        val derived = DerivedEvent().derivedOf(trigger).toPersisted(1L, LocalDateTime.now())
+        val derived = DerivedEvent().derivedOf(trigger).toPersisted(1L, MyTime.UtcNow())
 
         eventStore.persist(derived!!.toEvent()!!) // simulate prior production
 

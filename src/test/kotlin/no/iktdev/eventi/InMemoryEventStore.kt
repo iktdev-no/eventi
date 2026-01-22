@@ -18,9 +18,15 @@ class InMemoryEventStore : EventStore {
         persisted.filter { it.referenceId == referenceId }
 
     override fun persist(event: Event) {
-        val persistedEvent = event.toPersisted(nextId++, LocalDateTime.now())
+        val persistedEvent = event.toPersisted(nextId++, MyTime.UtcNow())
         persisted += persistedEvent!!
     }
+
+    fun persistAt(event: Event, persistedAt: LocalDateTime) {
+        val persistedEvent = event.toPersisted(nextId++, persistedAt)
+        persisted += persistedEvent!!
+    }
+
 
     fun all(): List<PersistedEvent> = persisted
     fun clear() { persisted.clear(); nextId = 1L }

@@ -12,6 +12,7 @@ import no.iktdev.eventi.EventDispatcherTest
 import no.iktdev.eventi.EventDispatcherTest.DerivedEvent
 import no.iktdev.eventi.EventDispatcherTest.OtherEvent
 import no.iktdev.eventi.EventDispatcherTest.TriggerEvent
+import no.iktdev.eventi.MyTime
 import no.iktdev.eventi.TestBase
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.testUtil.wipe
@@ -137,7 +138,7 @@ class EventPollerImplementationTest : TestBase() {
 
         val testPoller = object : EventPollerImplementation(eventStore, queue, dispatcher) {
             init {
-                lastSeenTime = LocalDateTime.now().plusSeconds(1)
+                lastSeenTime = MyTime.UtcNow().plusSeconds(1)
             }
         }
 

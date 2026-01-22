@@ -30,13 +30,13 @@ open class InMemoryTaskStore : TaskStore {
     override fun claim(taskId: UUID, workerId: String): Boolean {
         val task = findByTaskId(taskId) ?: return false
         if (task.claimed && !isExpired(task)) return false
-        update(task.copy(claimed = true, claimedBy = workerId, lastCheckIn = LocalDateTime.now()))
+        update(task.copy(claimed = true, claimedBy = workerId, lastCheckIn = MyTime.UtcNow()))
         return true
     }
 
     override fun heartbeat(taskId: UUID) {
         val task = findByTaskId(taskId) ?: return
-        update(task.copy(lastCheckIn = LocalDateTime.now()))
+        update(task.copy(lastCheckIn = MyTime.UtcNow()))
     }
 
     override fun markConsumed(taskId: UUID, status: TaskStatus) {
@@ -45,7 +45,7 @@ open class InMemoryTaskStore : TaskStore {
     }
 
     override fun releaseExpiredTasks(timeout: Duration) {
-        val now = LocalDateTime.now()
+        val now = MyTime.UtcNow()
         tasks.filter {
             it.claimed && !it.consumed && it.lastCheckIn?.isBefore(now.minus(timeout)) == true
         }.forEach {
@@ -60,7 +60,7 @@ open class InMemoryTaskStore : TaskStore {
     }
 
     private fun isExpired(task: PersistedTask): Boolean {
-        val now = LocalDateTime.now()
+        val now = MyTime.UtcNow()
         return task.lastCheckIn?.isBefore(now.minusMinutes(15)) == true
     }
 

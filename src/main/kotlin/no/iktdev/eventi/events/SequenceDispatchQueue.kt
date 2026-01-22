@@ -11,7 +11,7 @@ import no.iktdev.eventi.models.Event
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
-class SequenceDispatchQueue(
+open class SequenceDispatchQueue(
     private val maxConcurrency: Int = 8,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
 ) {
@@ -25,9 +25,9 @@ class SequenceDispatchQueue(
     private val log = KotlinLogging.logger {}
 
 
-    fun isProcessing(referenceId: UUID): Boolean = referenceId in active
+    open fun isProcessing(referenceId: UUID): Boolean = referenceId in active
 
-    fun dispatch(referenceId: UUID, events: List<Event>, dispatcher: EventDispatcher): Job? {
+    open fun dispatch(referenceId: UUID, events: List<Event>, dispatcher: EventDispatcher): Job? {
         if (!active.add(referenceId)) {
             log.debug {"⚠️ Already processing $referenceId, skipping dispatch"}
             return null
