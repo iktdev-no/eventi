@@ -51,16 +51,15 @@ abstract class EventPollerImplementation(
         // Samle persistedAt KUN for referanser vi faktisk dispatch’et
         val processedTimes = mutableListOf<LocalDateTime>()
 
-        for ((referenceId, eventsForRef) in grouped) {
+        for ((referenceId, _) in grouped) {
             if (dispatchQueue.isProcessing(referenceId)) {
                 log.debug { "Skipping dispatch for $referenceId as it is already being processed" }
                 continue
             }
 
             val fullLog = eventStore.getPersistedEventsFor(referenceId)
-            processedTimes += fullLog.map { it.persistedAt }
-
             val events = fullLog.mapNotNull { it.toEvent() }
+            processedTimes += fullLog.map { it.persistedAt }
             dispatchQueue.dispatch(referenceId, events, dispatcher)
         }
 
