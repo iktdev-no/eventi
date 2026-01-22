@@ -114,7 +114,7 @@ class RunSimulationTestTest {
     }
 
     @Test
-    fun `poller does NOT update lastSeenTime when queue is busy`() = runTest {
+    fun `poller DOES update lastSeenTime even when queue is busy`() = runTest {
         val ref = UUID.randomUUID()
         val t = LocalDateTime.of(2026,1,22,12,0,0)
 
@@ -127,9 +127,11 @@ class RunSimulationTestTest {
         poller.pollOnce()
         advanceUntilIdle()
 
+        // Etter livelock-fixen skal lastSeenTime være *etter* eventet
         assertThat(poller.lastSeenTime)
-            .isEqualTo(LocalDateTime.of(1970,1,1,0,0))
+            .isAfter(t)
     }
+
 
 
 
