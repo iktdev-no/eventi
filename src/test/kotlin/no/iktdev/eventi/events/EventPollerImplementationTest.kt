@@ -22,7 +22,6 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.time.Duration
-import java.time.LocalDateTime
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -138,7 +137,7 @@ class EventPollerImplementationTest : TestBase() {
 
         val testPoller = object : EventPollerImplementation(eventStore, queue, dispatcher) {
             init {
-                lastSeenTime = MyTime.UtcNow().plusSeconds(1)
+                lastSeenTime = MyTime.utcNow().plusSeconds(1)
             }
         }
 

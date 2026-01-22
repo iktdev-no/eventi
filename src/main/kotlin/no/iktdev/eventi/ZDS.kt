@@ -1,5 +1,6 @@
 package no.iktdev.eventi
 
+import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonDeserializationContext
 import com.google.gson.JsonDeserializer
@@ -15,13 +16,14 @@ import no.iktdev.eventi.models.store.PersistedTask
 import no.iktdev.eventi.models.store.TaskStatus
 import no.iktdev.eventi.tasks.TaskTypeRegistry
 import java.lang.reflect.Type
+import java.time.Instant
 import java.time.LocalDateTime
 import java.time.format.DateTimeFormatter
 
 object ZDS {
     val gson = WGson.gson
 
-    fun Event.toPersisted(id: Long, persistedAt: LocalDateTime = MyTime.UtcNow()): PersistedEvent? {
+    fun Event.toPersisted(id: Long, persistedAt: Instant = MyTime.utcNow()): PersistedEvent? {
         val payloadJson = gson.toJson(this)
         val eventName = this::class.simpleName ?: run {
             throw IllegalStateException("Missing class name for event: $this")
@@ -47,7 +49,7 @@ object ZDS {
         return gson.fromJson(data, clazz)
     }
 
-    fun Task.toPersisted(id: Long, status: TaskStatus = TaskStatus.Pending, persistedAt: LocalDateTime = MyTime.UtcNow()): PersistedTask? {
+    fun Task.toPersisted(id: Long, status: TaskStatus = TaskStatus.Pending, persistedAt: Instant = MyTime.utcNow()): PersistedTask? {
         val payloadJson = gson.toJson(this)
         val taskName = this::class.simpleName ?: run {
             throw IllegalStateException("Missing class name for task: $this")
@@ -80,26 +82,47 @@ object ZDS {
 
     object WGson {
         val gson = GsonBuilder()
+            .registerTypeAdapter(Instant::class.java, InstantAdapter())
+            // hvis du fortsatt har LocalDateTime et sted:
             .registerTypeAdapter(LocalDateTime::class.java, LocalDateTimeAdapter())
             .create()
-        fun toJson(data: Any?): String {
-            return gson.toJson(data)
+
+        fun toJson(data: Any?): String =
+            gson.toJson(data)
+
+        class InstantAdapter : JsonSerializer<Instant>, JsonDeserializer<Instant> {
+            override fun serialize(
+                src: Instant,
+                typeOfSrc: Type,
+                context: JsonSerializationContext
+            ): JsonElement =
+                JsonPrimitive(src.toString()) // ISO-8601, UTC
+
+            override fun deserialize(
+                json: JsonElement,
+                typeOfT: Type,
+                context: JsonDeserializationContext
+            ): Instant =
+                Instant.parse(json.asString)
         }
 
         class LocalDateTimeAdapter : JsonSerializer<LocalDateTime>, JsonDeserializer<LocalDateTime> {
             private val formatter = DateTimeFormatter.ISO_LOCAL_DATE_TIME
 
             override fun serialize(
-                src: LocalDateTime, typeOfSrc: Type, context: JsonSerializationContext
-            ): JsonElement {
-                return JsonPrimitive(src.format(formatter))
-            }
+                src: LocalDateTime,
+                typeOfSrc: Type,
+                context: JsonSerializationContext
+            ): JsonElement =
+                JsonPrimitive(src.format(formatter))
 
             override fun deserialize(
-                json: JsonElement, typeOfT: Type, context: JsonDeserializationContext
-            ): LocalDateTime {
-                return LocalDateTime.parse(json.asString, formatter)
-            }
+                json: JsonElement,
+                typeOfT: Type,
+                context: JsonDeserializationContext
+            ): LocalDateTime =
+                LocalDateTime.parse(json.asString, formatter)
         }
     }
+
 }

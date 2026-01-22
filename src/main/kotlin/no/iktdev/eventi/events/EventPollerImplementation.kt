@@ -6,7 +6,7 @@ import no.iktdev.eventi.MyTime
 import no.iktdev.eventi.ZDS.toEvent
 import no.iktdev.eventi.stores.EventStore
 import java.time.Duration
-import java.time.LocalDateTime
+import java.time.Instant
 import java.util.UUID
 import kotlin.collections.iterator
 
@@ -16,10 +16,10 @@ abstract class EventPollerImplementation(
     private val dispatcher: EventDispatcher
 ) {
     // Erstatter ikke lastSeenTime, men supplerer den
-    protected val refWatermark = mutableMapOf<UUID, LocalDateTime>()
+    protected val refWatermark = mutableMapOf<UUID, Instant>()
 
     // lastSeenTime brukes kun som scan hint
-    var lastSeenTime: LocalDateTime = LocalDateTime.of(1970, 1, 1, 0, 0)
+    var lastSeenTime: Instant = Instant.EPOCH
 
     open var backoff = Duration.ofSeconds(2)
         protected set
@@ -40,7 +40,7 @@ abstract class EventPollerImplementation(
     }
 
     suspend fun pollOnce() {
-        val pollStartedAt = MyTime.UtcNow()
+        val pollStartedAt = MyTime.utcNow()
         log.debug { "🔍 Polling for new events" }
 
         // Global scan hint: kombiner refWatermark og lastSeenTime
@@ -70,7 +70,7 @@ abstract class EventPollerImplementation(
         val maxPersistedThisRound = newPersisted.maxOf { it.persistedAt }
 
         for ((ref, eventsForRef) in grouped) {
-            val refSeen = refWatermark[ref] ?: LocalDateTime.of(1970, 1, 1, 0, 0)
+            val refSeen = refWatermark[ref] ?: Instant.EPOCH
 
             // Finn kun nye events for denne ref’en
             val newForRef = eventsForRef.filter { it.persistedAt > refSeen }

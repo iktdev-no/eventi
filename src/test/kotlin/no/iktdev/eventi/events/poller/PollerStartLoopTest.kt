@@ -2,6 +2,7 @@ package no.iktdev.eventi.events.poller
 
 import kotlinx.coroutines.test.*
 import no.iktdev.eventi.InMemoryEventStore
+import no.iktdev.eventi.MyTime
 import no.iktdev.eventi.TestBase
 import no.iktdev.eventi.events.EventDispatcher
 import no.iktdev.eventi.events.EventTypeRegistry
@@ -13,12 +14,13 @@ import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Metadata
 import no.iktdev.eventi.models.store.PersistedEvent
 import no.iktdev.eventi.stores.EventStore
-import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
-import java.time.LocalDateTime
+import java.time.Instant
 import java.util.UUID
+import org.assertj.core.api.Assertions.assertThat
+
 
 class PollerStartLoopTest: TestBase() {
 
@@ -29,8 +31,8 @@ class PollerStartLoopTest: TestBase() {
     private lateinit var queue: RunSimulationTestTest.ControlledDispatchQueue
     private lateinit var poller: TestablePoller
 
-    private fun t(seconds: Long): LocalDateTime =
-        LocalDateTime.of(2024, 1, 1, 12, 0).plusSeconds(seconds)
+    private fun t(seconds: Long): Instant =
+        Instant.parse("2024-01-01T12:00:00Z").plusSeconds(seconds)
 
 
     @BeforeEach
@@ -45,7 +47,7 @@ class PollerStartLoopTest: TestBase() {
         poller = TestablePoller(store, queue, dispatcher, scope)
     }
 
-    private fun persistAt(ref: UUID, time: LocalDateTime) {
+    private fun persistAt(ref: UUID, time: Instant) {
         val e = TestEvent().withReference(ref).setMetadata(Metadata())
         store.persistAt(e, time)
     }
@@ -80,7 +82,7 @@ class PollerStartLoopTest: TestBase() {
         val before = poller.backoff
 
         val ref = UUID.randomUUID()
-        persistAt(ref, LocalDateTime.now())
+        persistAt(ref, MyTime.utcNow())
 
         poller.startFor(iterations = 1)
 
@@ -93,7 +95,7 @@ class PollerStartLoopTest: TestBase() {
 
         poller.startFor(iterations = 3)
 
-        persistAt(ref, LocalDateTime.now())
+        persistAt(ref, MyTime.utcNow())
 
         poller.startFor(iterations = 1)
 
@@ -108,7 +110,7 @@ class PollerStartLoopTest: TestBase() {
         queue.busyRefs += ref
 
         // Legg inn et event
-        val t = LocalDateTime.now()
+        val t = MyTime.utcNow()
         persistAt(ref, t)
 
         // Første poll: ingen dispatch fordi ref er busy
@@ -152,7 +154,7 @@ class PollerStartLoopTest: TestBase() {
 
         queue.busyRefs += ref
 
-        val t1 = LocalDateTime.now()
+        val t1 = MyTime.utcNow()
         persistAt(ref, t1)
 
         poller.startFor(iterations = 1)
@@ -223,7 +225,7 @@ class PollerStartLoopTest: TestBase() {
         assertThat(poller.watermarkFor(refA)).isEqualTo(wmA1)
 
         // B skal ha flyttet watermark
-        assertThat(poller.watermarkFor(refB)).isAfter(wmB1)
+        assertThat(poller.watermarkFor(refB)).isGreaterThan(wmB1)
     }
 
     @DisplayName("🍌 Bananastesten™ — stress-test av watermark, busy refs og dispatch-semantikk")
@@ -346,7 +348,7 @@ class PollerStartLoopTest: TestBase() {
 
         // Fake EventStore som alltid returnerer samme event
         val fakeStore = object : EventStore {
-            override fun getPersistedEventsAfter(ts: LocalDateTime): List<PersistedEvent> {
+            override fun getPersistedEventsAfter(ts: Instant): List<PersistedEvent> {
                 // Alltid returner én event som ligger før watermark
                 return listOf(
                     PersistedEvent(
@@ -392,8 +394,8 @@ class PollerStartLoopTest: TestBase() {
         poller.pollOnce()
 
         // Fixen skal flytte lastSeenTime forbi eventen
-        assertThat(poller.lastSeenTime)
-            .isAfter(t(50))
+        assertThat<Instant>(poller.lastSeenTime)
+            .isGreaterThan(t(50))
 
         // Andre poll: nå skal polleren IKKE spinne
         val before = poller.lastSeenTime

@@ -1,12 +1,14 @@
 package no.iktdev.eventi
 
 import java.time.Clock
-import java.time.LocalDateTime
+import java.time.Instant
 
 object MyTime {
     private val clock: Clock = Clock.systemUTC()
 
     @JvmStatic
-    fun UtcNow(): LocalDateTime =
-        LocalDateTime.now(clock)
+    fun utcNow(): Instant =
+        Instant.now(clock)
+
 }
+

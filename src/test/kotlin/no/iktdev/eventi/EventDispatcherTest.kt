@@ -18,7 +18,6 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
-import java.time.LocalDateTime
 import java.util.UUID
 
 class EventDispatcherTest: TestBase() {
@@ -71,7 +70,7 @@ class EventDispatcherTest: TestBase() {
         val listener = ProducingListener()
 
         val trigger = TriggerEvent()
-        val derived = DerivedEvent().derivedOf(trigger).toPersisted(1L, MyTime.UtcNow())
+        val derived = DerivedEvent().derivedOf(trigger).toPersisted(1L, MyTime.utcNow())
 
         eventStore.persist(derived!!.toEvent()!!) // simulate prior production
 

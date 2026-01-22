@@ -1,6 +1,6 @@
 package no.iktdev.eventi.models.store
 
-import java.time.LocalDateTime
+import java.time.Instant
 import java.util.UUID
 
 data class PersistedTask(
@@ -13,8 +13,8 @@ data class PersistedTask(
     val claimed: Boolean,
     val claimedBy: String? = null,
     val consumed: Boolean,
-    val lastCheckIn: LocalDateTime? = null,
-    val persistedAt: LocalDateTime
+    val lastCheckIn: Instant? = null,
+    val persistedAt: Instant
 ) {}
 
 enum class TaskStatus {

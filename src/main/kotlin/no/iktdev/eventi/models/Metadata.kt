@@ -1,11 +1,11 @@
 package no.iktdev.eventi.models
 
 import no.iktdev.eventi.MyTime
-import java.time.LocalDateTime
+import java.time.Instant
 import java.util.UUID
 
 class Metadata {
-    val created: LocalDateTime = MyTime.UtcNow()
+    val created: Instant = MyTime.utcNow()
     var derivedFromId: Set<UUID>? = null
         private set
     fun derivedFromEventId(vararg id: UUID) = apply {

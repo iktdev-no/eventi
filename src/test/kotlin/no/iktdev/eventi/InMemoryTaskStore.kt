@@ -6,7 +6,7 @@ import no.iktdev.eventi.models.store.PersistedTask
 import no.iktdev.eventi.models.store.TaskStatus
 import no.iktdev.eventi.stores.TaskStore
 import java.time.Duration
-import java.time.LocalDateTime
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlin.concurrent.atomics.AtomicReference
 
@@ -30,13 +30,13 @@ open class InMemoryTaskStore : TaskStore {
     override fun claim(taskId: UUID, workerId: String): Boolean {
         val task = findByTaskId(taskId) ?: return false
         if (task.claimed && !isExpired(task)) return false
-        update(task.copy(claimed = true, claimedBy = workerId, lastCheckIn = MyTime.UtcNow()))
+        update(task.copy(claimed = true, claimedBy = workerId, lastCheckIn = MyTime.utcNow()))
         return true
     }
 
     override fun heartbeat(taskId: UUID) {
         val task = findByTaskId(taskId) ?: return
-        update(task.copy(lastCheckIn = MyTime.UtcNow()))
+        update(task.copy(lastCheckIn = MyTime.utcNow()))
     }
 
     override fun markConsumed(taskId: UUID, status: TaskStatus) {
@@ -45,7 +45,7 @@ open class InMemoryTaskStore : TaskStore {
     }
 
     override fun releaseExpiredTasks(timeout: Duration) {
-        val now = MyTime.UtcNow()
+        val now = MyTime.utcNow()
         tasks.filter {
             it.claimed && !it.consumed && it.lastCheckIn?.isBefore(now.minus(timeout)) == true
         }.forEach {
@@ -60,8 +60,8 @@ open class InMemoryTaskStore : TaskStore {
     }
 
     private fun isExpired(task: PersistedTask): Boolean {
-        val now = MyTime.UtcNow()
-        return task.lastCheckIn?.isBefore(now.minusMinutes(15)) == true
+        val now = MyTime.utcNow()
+        return task.lastCheckIn?.isBefore(now.minus(15, ChronoUnit.MINUTES)) == true
     }
 
     private fun serialize(data: Any?): String = data?.toString() ?: "{}"

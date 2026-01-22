@@ -8,12 +8,13 @@ import no.iktdev.eventi.InMemoryEventStore
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
-import java.time.LocalDateTime
 import java.util.UUID
 import kotlinx.coroutines.*
+import no.iktdev.eventi.MyTime
 import no.iktdev.eventi.ZDS.toPersisted
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Metadata
+import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 
 
@@ -59,9 +60,9 @@ class TestEvent : Event() {
 }
 
 
-class FakeClock(var now: LocalDateTime) {
+class FakeClock(var now: Instant) {
     fun advanceSeconds(sec: Long) {
-        now = now.plusSeconds(sec)
+        now = MyTime.utcNow().plusSeconds(sec)
     }
 }
 
@@ -88,7 +89,7 @@ class RunSimulationTestTest {
         }
     }
 
-    private fun persistEvent(ref: UUID, time: LocalDateTime) {
+    private fun persistEvent(ref: UUID, time: Instant) {
         val e = TestEvent().withReference(ref)
         store.persist(e.setMetadata(Metadata()))
     }
@@ -96,14 +97,14 @@ class RunSimulationTestTest {
     @Test
     fun `poller updates lastSeenTime when dispatch happens`() = runTest(testDispatcher) {
         val ref = UUID.randomUUID()
-        val t = LocalDateTime.of(2026, 1, 22, 12, 0, 0)
+        val t = Instant.parse("2026-01-22T12:00:00Z")
 
         persistEvent(ref, t)
 
         poller.pollOnce()
         advanceUntilIdle()
 
-        assertThat(poller.lastSeenTime).isAfter(LocalDateTime.of(1970,1,1,0,0))
+        assertThat(poller.lastSeenTime).isGreaterThan(Instant.EPOCH)
         assertThat(dispatcher.dispatched).hasSize(1)
     }
 
@@ -116,7 +117,7 @@ class RunSimulationTestTest {
     @Test
     fun `poller DOES update lastSeenTime even when queue is busy`() = runTest {
         val ref = UUID.randomUUID()
-        val t = LocalDateTime.of(2026,1,22,12,0,0)
+        val t = Instant.parse("2026-01-22T12:00:00Z")
 
         store.persistAt(TestEvent().withReference(ref), t)
 
@@ -129,7 +130,7 @@ class RunSimulationTestTest {
 
         // Etter livelock-fixen skal lastSeenTime være *etter* eventet
         assertThat(poller.lastSeenTime)
-            .isAfter(t)
+            .isGreaterThan(t)
     }
 
 
@@ -138,7 +139,7 @@ class RunSimulationTestTest {
     @Test
     fun `poller does not double-dispatch`() = runTest(testDispatcher) {
         val ref = UUID.randomUUID()
-        val t = LocalDateTime.of(2026, 1, 22, 12, 0, 0)
+        val t = Instant.parse("2026-01-22T12:00:00Z")
 
         persistEvent(ref, t)
 
@@ -155,7 +156,7 @@ class RunSimulationTestTest {
     fun `poller handles multiple referenceIds`() = runTest(testDispatcher) {
         val refA = UUID.randomUUID()
         val refB = UUID.randomUUID()
-        val t = LocalDateTime.of(2026, 1, 22, 12, 0, 0)
+        val t = Instant.parse("2026-01-22T12:00:00Z")
 
         persistEvent(refA, t)
         persistEvent(refB, t.plusSeconds(1))
@@ -170,7 +171,7 @@ class RunSimulationTestTest {
     fun `poller handles identical timestamps`() = runTest(testDispatcher) {
         val refA = UUID.randomUUID()
         val refB = UUID.randomUUID()
-        val t = LocalDateTime.of(2026, 1, 22, 12, 0, 0)
+        val t = Instant.parse("2026-01-22T12:00:00Z")
 
         persistEvent(refA, t)
         persistEvent(refB, t)
@@ -212,7 +213,7 @@ class RunSimulationTestTest {
     @Test
     fun `poller processes events arriving while queue is busy`() = runTest(testDispatcher) {
         val ref = UUID.randomUUID()
-        val t1 = LocalDateTime.of(2026, 1, 22, 12, 0, 0)
+        val t1 = Instant.parse("2026-01-22T12:00:00Z")
         val t2 = t1.plusSeconds(5)
 
         persistEvent(ref, t1)

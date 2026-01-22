@@ -6,7 +6,7 @@ import no.iktdev.eventi.events.EventDispatcher
 import no.iktdev.eventi.events.EventPollerImplementation
 import no.iktdev.eventi.events.SequenceDispatchQueue
 import no.iktdev.eventi.stores.EventStore
-import java.time.LocalDateTime
+import java.time.Instant
 import java.util.UUID
 
 class TestablePoller(
@@ -31,19 +31,19 @@ class TestablePoller(
         }
     }
 
-    override fun watermarkFor(ref: UUID): LocalDateTime? {
+    override fun watermarkFor(ref: UUID): Instant? {
         return refWatermark[ref]?.let {
             return it
         }
     }
 
-    override fun setWatermarkFor(ref: UUID, time: LocalDateTime) {
+    override fun setWatermarkFor(ref: UUID, time: Instant) {
         refWatermark[ref] = time
     }
 
 
 }
 interface WatermarkDebugView {
-    fun watermarkFor(ref: UUID): LocalDateTime?
-    fun setWatermarkFor(ref: UUID, time: LocalDateTime)
+    fun watermarkFor(ref: UUID): Instant?
+    fun setWatermarkFor(ref: UUID, time: Instant)
 }
