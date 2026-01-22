@@ -1,6 +1,7 @@
 package no.iktdev.eventi.events
 
 import kotlinx.coroutines.delay
+import mu.KotlinLogging
 import no.iktdev.eventi.ZDS.toEvent
 import no.iktdev.eventi.stores.EventStore
 import java.time.Duration
@@ -16,11 +17,17 @@ abstract class EventPollerImplementation(
     open var backoff = Duration.ofSeconds(2)
         protected set
     private val maxBackoff = Duration.ofMinutes(1)
-
+    private val log = KotlinLogging.logger {}
 
     open suspend fun start() {
         while (true) {
-            pollOnce()
+            try {
+                pollOnce()
+            } catch (e: Exception) {
+                e.printStackTrace()
+                delay(backoff.toMillis())
+                backoff = backoff.multipliedBy(2).coerceAtMost(maxBackoff)
+            }
         }
     }
 
@@ -38,7 +45,10 @@ abstract class EventPollerImplementation(
         val grouped = newPersisted.groupBy { it.referenceId }
 
         for ((referenceId, _) in grouped) {
-            if (dispatchQueue.isProcessing(referenceId)) continue
+            if (dispatchQueue.isProcessing(referenceId)){
+                log.debug { "Skipping dispatch for $referenceId as it is already being processed" }
+                continue
+            }
 
             val fullLog = eventStore.getPersistedEventsFor(referenceId)
             val events = fullLog.mapNotNull { it.toEvent() }

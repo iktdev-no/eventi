@@ -20,6 +20,7 @@ dependencies {
 
 
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
+    implementation("io.github.microutils:kotlin-logging-jvm:2.0.11")
 
     //testImplementation(kotlin("test"))
     testImplementation("org.assertj:assertj-core:3.4.1")
