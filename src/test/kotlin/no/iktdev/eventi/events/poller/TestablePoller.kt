@@ -37,8 +37,13 @@ class TestablePoller(
         }
     }
 
+    override fun setWatermarkFor(ref: UUID, time: LocalDateTime) {
+        refWatermark[ref] = time
+    }
+
 
 }
 interface WatermarkDebugView {
     fun watermarkFor(ref: UUID): LocalDateTime?
+    fun setWatermarkFor(ref: UUID, time: LocalDateTime)
 }

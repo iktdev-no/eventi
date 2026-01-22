@@ -2,11 +2,17 @@ package no.iktdev.eventi.events.poller
 
 import kotlinx.coroutines.test.*
 import no.iktdev.eventi.InMemoryEventStore
+import no.iktdev.eventi.TestBase
+import no.iktdev.eventi.events.EventDispatcher
 import no.iktdev.eventi.events.EventTypeRegistry
 import no.iktdev.eventi.events.FakeDispatcher
 import no.iktdev.eventi.events.RunSimulationTestTest
+import no.iktdev.eventi.events.SequenceDispatchQueue
 import no.iktdev.eventi.events.TestEvent
+import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Metadata
+import no.iktdev.eventi.models.store.PersistedEvent
+import no.iktdev.eventi.stores.EventStore
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
@@ -14,7 +20,7 @@ import org.junit.jupiter.api.Test
 import java.time.LocalDateTime
 import java.util.UUID
 
-class PollerStartLoopTest {
+class PollerStartLoopTest: TestBase() {
 
     private lateinit var store: InMemoryEventStore
     private lateinit var dispatcher: FakeDispatcher
@@ -292,6 +298,71 @@ class PollerStartLoopTest {
             assertThat(uniqueEvents).hasSize(eventCountPerRef + 1)
         }
     }
+
+    @Test
+    fun `poller should not livelock when global scan sees events but watermark rejects them`() = runTest {
+        val ref = UUID.randomUUID()
+
+        // Fake EventStore som alltid returnerer samme event
+        val fakeStore = object : EventStore {
+            override fun getPersistedEventsAfter(ts: LocalDateTime): List<PersistedEvent> {
+                // Alltid returner én event som ligger før watermark
+                return listOf(
+                    PersistedEvent(
+                        id = 1,
+                        referenceId = ref,
+                        eventId = UUID.randomUUID(),
+                        event = "test",
+                        data = """{"x":1}""",
+                        persistedAt = t(50)   // før watermark
+                    )
+                )
+            }
+
+            override fun getPersistedEventsFor(ref: UUID): List<PersistedEvent> {
+                return emptyList() // spiller ingen rolle
+            }
+
+            override fun persist(event: Event) {
+                TODO("Not yet implemented")
+            }
+        }
+
+        val queue = SequenceDispatchQueue()
+        class NoopDispatcher : EventDispatcher(fakeStore) {
+            override fun dispatch(referenceId: UUID, events: List<Event>) {
+                // Do nothing
+            }
+        }
+
+
+        val dispatcher = NoopDispatcher()
+
+        val poller = TestablePoller(fakeStore, queue, dispatcher, scope)
+
+        // Sett watermark høyt (polleren setter watermark selv i ekte drift,
+        // men i denne testen må vi simulere det)
+        poller.setWatermarkFor(ref, t(100))
+
+        // Sett lastSeenTime bak eventen
+        poller.lastSeenTime = t(0)
+
+        // Første poll: polleren ser eventet, men prosesserer ikke ref
+        poller.pollOnce()
+
+        // Fixen skal flytte lastSeenTime forbi eventen
+        assertThat(poller.lastSeenTime)
+            .isAfter(t(50))
+
+        // Andre poll: nå skal polleren IKKE spinne
+        val before = poller.lastSeenTime
+        poller.pollOnce()
+        val after = poller.lastSeenTime
+
+        assertThat(after).isEqualTo(before)
+    }
+
+
 
 
 

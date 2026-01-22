@@ -43,8 +43,12 @@ abstract class EventPollerImplementation(
         val pollStartedAt = MyTime.UtcNow()
         log.debug { "🔍 Polling for new events" }
 
-        // Global scan hint: start fra laveste watermark
-        val scanFrom = refWatermark.values.minOrNull() ?: lastSeenTime
+        // Global scan hint: kombiner refWatermark og lastSeenTime
+        val watermarkMin = refWatermark.values.minOrNull()
+        val scanFrom = when (watermarkMin) {
+            null -> lastSeenTime
+            else -> maxOf(lastSeenTime, watermarkMin)
+        }
 
         val newPersisted = eventStore.getPersistedEventsAfter(scanFrom)
 
@@ -55,11 +59,15 @@ abstract class EventPollerImplementation(
             return
         }
 
+        // Vi har sett nye events globalt – reset backoff
         backoff = Duration.ofSeconds(2)
-        log.debug { "📬 Found ${newPersisted.size} new events" }
+        log.debug { "📬 Found ${newPersisted.size} new events after $scanFrom" }
 
         val grouped = newPersisted.groupBy { it.referenceId }
         var anyProcessed = false
+
+        // Track høyeste persistedAt vi har sett i denne runden
+        val maxPersistedThisRound = newPersisted.maxOf { it.persistedAt }
 
         for ((ref, eventsForRef) in grouped) {
             val refSeen = refWatermark[ref] ?: LocalDateTime.of(1970, 1, 1, 0, 0)
@@ -85,8 +93,8 @@ abstract class EventPollerImplementation(
             dispatchQueue.dispatch(ref, events, dispatcher)
 
             // Oppdater watermark for denne ref’en
-            val maxPersistedAt = newForRef.maxOf { it.persistedAt }
-            val newWatermark = minOf(pollStartedAt, maxPersistedAt).plusNanos(1)
+            val maxPersistedAtForRef = newForRef.maxOf { it.persistedAt }
+            val newWatermark = minOf(pollStartedAt, maxPersistedAtForRef).plusNanos(1)
 
             refWatermark[ref] = newWatermark
             anyProcessed = true
@@ -94,14 +102,30 @@ abstract class EventPollerImplementation(
             log.debug { "⏩ Updated watermark for $ref → $newWatermark" }
         }
 
-        // Oppdater global scan hint
+        // Oppdater global scan hint uansett – vi har sett nye events
+        // Dette hindrer livelock når alle events er <= watermark for sine refs
+        val newLastSeen = maxOf(
+            lastSeenTime,
+            maxPersistedThisRound.plusNanos(1)
+        )
+
         if (anyProcessed) {
-            lastSeenTime = refWatermark.values.minOrNull() ?: lastSeenTime
-            log.debug { "📉 Global scanFrom updated → $lastSeenTime" }
+            // Behold intensjonen din: globalt hint basert på laveste watermark,
+            // men aldri gå bakover i tid ift lastSeenTime
+            val minRefWatermark = refWatermark.values.minOrNull()
+            lastSeenTime = when (minRefWatermark) {
+                null -> newLastSeen
+                else -> maxOf(newLastSeen, minRefWatermark)
+            }
+            log.debug { "📉 Global scanFrom updated → $lastSeenTime (anyProcessed=true)" }
         } else {
-            log.debug { "🔁 No refs processed — global scanFrom unchanged ($lastSeenTime)" }
+            // Ingen refs prosessert, men vi vet at alle events vi så er <= watermark
+            // → trygt å flytte lastSeenTime forbi dem
+            lastSeenTime = newLastSeen
+            log.debug { "🔁 No refs processed — advancing global scanFrom to $lastSeenTime" }
         }
     }
+
 
 
 
