@@ -60,8 +60,9 @@ abstract class EventPollerImplementation(
             dispatchQueue.dispatch(referenceId, events, dispatcher)
         }
         val maxPersistedAt = newPersisted.maxOf { it.persistedAt }
-        log.debug { "Updating lastSeenTime from $lastSeenTime to ${minOf(pollStartedAt, maxPersistedAt).plusNanos(1)}" }
-        lastSeenTime = minOf(pollStartedAt, maxPersistedAt).plusNanos(1)
+        val newCheckpointTime = minOf(pollStartedAt, maxPersistedAt)
+        log.debug { "Updating lastSeenTime from $lastSeenTime to $newCheckpointTime" }
+        lastSeenTime = newCheckpointTime
     }
 
 }
