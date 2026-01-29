@@ -34,7 +34,11 @@ class TaskListenerTest {
             claimed = true
         }
 
-        override fun markConsumed(taskId: UUID) {
+        override fun markCompleted(taskId: UUID) {
+            consumed = true
+        }
+
+        override fun markFailed(taskId: UUID) {
             consumed = true
         }
 
