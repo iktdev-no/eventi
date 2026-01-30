@@ -117,8 +117,7 @@ class EventDispatcherTest: TestBase() {
         val original = TriggerEvent()
 
         // Slettehendelse som peker på original
-        val deleted = object : DeleteEvent() {
-            override var deletedEventId = original.eventId
+        val deleted = object : DeleteEvent(original.eventId) {
         }
 
         // Dispatch med begge hendelser
@@ -145,8 +144,7 @@ class EventDispatcherTest: TestBase() {
             }
         }
 
-        val deleted = object : DeleteEvent() {
-            override var deletedEventId = UUID.randomUUID()
+        val deleted = object : DeleteEvent(UUID.randomUUID()) {
         }
         dispatcher.dispatch(deleted.referenceId, listOf(deleted))
 
