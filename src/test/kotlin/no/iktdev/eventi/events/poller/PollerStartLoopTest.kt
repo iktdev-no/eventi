@@ -20,9 +20,16 @@ import org.junit.jupiter.api.Test
 import java.time.Instant
 import java.util.UUID
 import org.assertj.core.api.Assertions.assertThat
+import java.time.Duration
 
 
-class PollerStartLoopTest: TestBase() {
+@DisplayName("""
+EventPollerImplementation – start-loop
+Når polleren kjører i en kontrollert test-loop
+Hvis events ankommer, refs er busy eller watermark flytter seg
+Så skal polleren håndtere backoff, dispatch og livelock korrekt
+""")
+class PollerStartLoopTest : TestBase() {
 
     private lateinit var store: InMemoryEventStore
     private lateinit var dispatcher: FakeDispatcher
@@ -33,7 +40,6 @@ class PollerStartLoopTest: TestBase() {
 
     private fun t(seconds: Long): Instant =
         Instant.parse("2024-01-01T12:00:00Z").plusSeconds(seconds)
-
 
     @BeforeEach
     fun setup() {
@@ -53,6 +59,11 @@ class PollerStartLoopTest: TestBase() {
     }
 
     @Test
+    @DisplayName("""
+    Når polleren kjører flere iterasjoner uten events
+    Hvis start-loop ikke finner noe å gjøre
+    Så skal backoff øke og ingen dispatch skje
+    """)
     fun `poller does not spin when no events exist`() = runTest {
         val startBackoff = poller.backoff
 
@@ -63,6 +74,11 @@ class PollerStartLoopTest: TestBase() {
     }
 
     @Test
+    @DisplayName("""
+    Når polleren gjentatte ganger ikke finner nye events
+    Hvis start-loop kjøres flere ganger
+    Så skal backoff øke eksponentielt
+    """)
     fun `poller increases backoff exponentially`() = runTest {
         val b1 = poller.backoff
 
@@ -77,6 +93,11 @@ class PollerStartLoopTest: TestBase() {
     }
 
     @Test
+    @DisplayName("""
+    Når polleren har økt backoff
+    Hvis nye events ankommer
+    Så skal backoff resettes til startverdi
+    """)
     fun `poller resets backoff when events appear`() = runTest {
         poller.startFor(iterations = 5)
         val before = poller.backoff
@@ -86,10 +107,15 @@ class PollerStartLoopTest: TestBase() {
 
         poller.startFor(iterations = 1)
 
-        assertThat(poller.backoff).isEqualTo(java.time.Duration.ofSeconds(2))
+        assertThat(poller.backoff).isEqualTo(Duration.ofSeconds(2))
     }
 
     @Test
+    @DisplayName("""
+    Når polleren sover (backoff)
+    Hvis nye events ankommer i mellomtiden
+    Så skal polleren prosessere dem i neste iterasjon
+    """)
     fun `poller processes events that arrive while sleeping`() = runTest {
         val ref = UUID.randomUUID()
 
@@ -103,6 +129,11 @@ class PollerStartLoopTest: TestBase() {
     }
 
     @Test
+    @DisplayName("""
+    Når en ref er busy
+    Hvis events ankommer for den ref'en
+    Så skal polleren ikke spinne og ikke miste events
+    """)
     fun `poller does not spin and does not lose events for non-busy refs`() = runTest {
         val ref = UUID.randomUUID()
 
@@ -130,8 +161,12 @@ class PollerStartLoopTest: TestBase() {
             .isLessThanOrEqualTo(1)
     }
 
-
     @Test
+    @DisplayName("""
+    Når polleren har prosessert en ref
+    Hvis ingen nye events ankommer
+    Så skal polleren ikke dispatch'e samme ref igjen
+    """)
     fun `poller does not dispatch when no new events for ref`() = runTest {
         val ref = UUID.randomUUID()
 
@@ -149,6 +184,11 @@ class PollerStartLoopTest: TestBase() {
     }
 
     @Test
+    @DisplayName("""
+    Når en ref er busy
+    Hvis nye events ankommer for den ref'en
+    Så skal polleren prosessere alle events når ref'en blir ledig
+    """)
     fun `event arriving while ref is busy is not lost`() = runTest {
         val ref = UUID.randomUUID()
 
@@ -178,8 +218,12 @@ class PollerStartLoopTest: TestBase() {
             .doesNotHaveDuplicates()
     }
 
-
     @Test
+    @DisplayName("""
+    Når én ref er busy
+    Hvis andre refs har events
+    Så skal polleren fortsatt dispatch'e de andre refs
+    """)
     fun `busy ref does not block dispatch of other refs`() = runTest {
         val refA = UUID.randomUUID()
         val refB = UUID.randomUUID()
@@ -199,6 +243,11 @@ class PollerStartLoopTest: TestBase() {
     }
 
     @Test
+    @DisplayName("""
+    Når flere refs har events
+    Hvis én ref er busy
+    Så skal watermark kun flyttes for refs som faktisk ble prosessert
+    """)
     fun `watermark advances only for refs that were processed`() = runTest {
         val refA = UUID.randomUUID()
         val refB = UUID.randomUUID()
@@ -209,8 +258,8 @@ class PollerStartLoopTest: TestBase() {
         // Første poll: begge refs blir dispatch’et
         poller.startFor(iterations = 1)
 
-        val wmA1 = poller.watermarkFor(refA!!)
-        val wmB1 = poller.watermarkFor(refB!!)
+        val wmA1 = poller.watermarkFor(refA)
+        val wmB1 = poller.watermarkFor(refB)
 
         // Marker A som busy
         queue.busyRefs += refA
@@ -231,6 +280,8 @@ class PollerStartLoopTest: TestBase() {
     @DisplayName("🍌 Bananastesten™ — stress-test av watermark, busy refs og dispatch-semantikk")
     @Test
     fun `stress test with many refs random busy states and interleaved events`() = runTest {
+        // Hele testen beholdes uendret
+        // (for lang til å gjenta her, men du ba om full fil, så beholdes som-is)
         val refs = List(50) { UUID.randomUUID() }
         val eventCountPerRef = 20
 
@@ -343,6 +394,11 @@ class PollerStartLoopTest: TestBase() {
 
 
     @Test
+    @DisplayName("""
+    Når EventStore returnerer events som ligger før watermark
+    Hvis polleren ser dem i global scan
+    Så skal polleren ikke livelock'e og lastSeenTime skal flyttes forbi eventen
+    """)
     fun `poller should not livelock when global scan sees events but watermark rejects them`() = runTest {
         val ref = UUID.randomUUID()
 
@@ -362,25 +418,16 @@ class PollerStartLoopTest: TestBase() {
                 )
             }
 
-            override fun getPersistedEventsFor(ref: UUID): List<PersistedEvent> {
-                return emptyList() // spiller ingen rolle
-            }
-
-            override fun persist(event: Event) {
-                TODO("Not yet implemented")
-            }
+            override fun getPersistedEventsFor(ref: UUID): List<PersistedEvent> = emptyList()
+            override fun persist(event: Event) = Unit
         }
 
         val queue = SequenceDispatchQueue()
         class NoopDispatcher : EventDispatcher(fakeStore) {
-            override fun dispatch(referenceId: UUID, events: List<Event>) {
-                // Do nothing
-            }
+            override fun dispatch(referenceId: UUID, events: List<Event>) {}
         }
 
-
         val dispatcher = NoopDispatcher()
-
         val poller = TestablePoller(fakeStore, queue, dispatcher, scope)
 
         // Sett watermark høyt (polleren setter watermark selv i ekte drift,
@@ -404,10 +451,5 @@ class PollerStartLoopTest: TestBase() {
 
         assertThat(after).isEqualTo(before)
     }
-
-
-
-
-
-
 }
+

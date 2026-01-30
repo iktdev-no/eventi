@@ -10,18 +10,24 @@ import kotlinx.coroutines.yield
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Task
 import org.junit.jupiter.api.Assertions.*
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
 
+@DisplayName("""
+TaskListener
+Når en task prosesseres i en coroutine med heartbeat
+Hvis lytteren håndterer arbeid, feil, avbrudd og sekvensiell kjøring
+Så skal state, heartbeat og cleanup fungere korrekt
+""")
 class TaskListenerTest {
 
     // -------------------------
     // Fake Task + Reporter
     // -------------------------
 
-    class FakeTask : Task() {
-    }
+    class FakeTask : Task()
 
     class FakeReporter : TaskReporter {
         var claimed = false
@@ -29,42 +35,27 @@ class TaskListenerTest {
         var logs = mutableListOf<String>()
         var events = mutableListOf<Event>()
 
-        override fun markClaimed(taskId: UUID, workerId: String) {
-            claimed = true
-        }
-
-        override fun markCompleted(taskId: UUID) {
-            consumed = true
-        }
-
-        override fun markFailed(taskId: UUID) {
-            consumed = true
-        }
-
-        override fun markCancelled(taskId: UUID) {
-        }
-
-        override fun updateProgress(taskId: UUID, progress: Int) {
-
-        }
-
-        override fun publishEvent(event: Event) {
-            events.add(event)
-        }
-
+        override fun markClaimed(taskId: UUID, workerId: String) { claimed = true }
+        override fun markCompleted(taskId: UUID) { consumed = true }
+        override fun markFailed(taskId: UUID) { consumed = true }
+        override fun markCancelled(taskId: UUID) {}
+        override fun updateProgress(taskId: UUID, progress: Int) {}
+        override fun publishEvent(event: Event) { events.add(event) }
         override fun updateLastSeen(taskId: UUID) {}
-
-        override fun log(taskId: UUID, message: String) {
-            logs.add(message)
-        }
+        override fun log(taskId: UUID, message: String) { logs.add(message) }
     }
 
     // -------------------------
-    // The actual test
+    // Tests
     // -------------------------
 
     @Test
-    fun `heartbeat starts inside onTask and is cancelled and nulled after completion`() = runTest {
+    @DisplayName("""
+    Når onTask starter heartbeat-runner
+    Hvis tasken fullføres normalt
+    Så skal heartbeat kjøre, kanselleres og state nullstilles etterpå
+    """)
+    fun heartbeatStartsAndStopsCorrectly() = runTest {
         val listener = object : TaskListener() {
 
             var heartbeatStarted: Job? = null
@@ -96,31 +87,26 @@ class TaskListenerTest {
         val accepted = listener.accept(task, reporter)
         assertTrue(accepted)
 
-        // Wait for job to finish
         listener.currentJob!!.join()
 
-        // Heartbeat was started
         assertNotNull(listener.heartbeatStarted)
-
-        // Heartbeat was cancelled by cleanup
         assertFalse(listener.heartbeatStarted!!.isActive)
-
-        // Heartbeat block actually ran
         assertTrue(listener.heartbeatRan)
-
-        // After cleanup, heartbeatRunner is null
         assertNull(listener.heartbeatRunner)
-
-        // Listener state cleaned
         assertNull(listener.currentJob)
         assertNull(listener.currentTask)
         assertNull(listener.reporter)
     }
 
     @Test
-    fun `heartbeat does not block other coroutine work`() = runTest {
+    @DisplayName("""
+    Når heartbeat kjører i bakgrunnen
+    Hvis onTask gjør annen coroutine-arbeid samtidig
+    Så skal heartbeat ikke blokkere annet arbeid
+    """)
+    fun heartbeatDoesNotBlockOtherWork() = runTest {
         val otherWorkCompleted = CompletableDeferred<Unit>()
-        val allowFinish = CompletableDeferred<Unit>() // ⭐ kontrollpunkt
+        val allowFinish = CompletableDeferred<Unit>()
 
         val listener = object : TaskListener() {
 
@@ -145,7 +131,6 @@ class TaskListenerTest {
 
                 // ⭐ Ikke fullfør onTask før testen sier det
                 allowFinish.await()
-
                 return object : Event() {}
             }
         }
@@ -181,13 +166,16 @@ class TaskListenerTest {
         assertNull(listener.currentTask)
     }
 
-
-
     @Test
-    fun `heartbeat and multiple concurrent tasks run without blocking`() = runTest {
+    @DisplayName("""
+    Når heartbeat kjører og flere parallelle jobber startes
+    Hvis både CPU- og IO-arbeid fullføres
+    Så skal heartbeat fortsatt kjøre og cleanup skje etterpå
+    """)
+    fun heartbeatAndConcurrentTasksRunCorrectly() = runTest {
         val converterDone = CompletableDeferred<Unit>()
         val videoDone = CompletableDeferred<Unit>()
-        val allowFinish = CompletableDeferred<Unit>() // ⭐ kontrollpunkt
+        val allowFinish = CompletableDeferred<Unit>()
 
         val listener = object : TaskListener() {
 
@@ -218,7 +206,6 @@ class TaskListenerTest {
 
                 // ⭐ Vent til testen sier "nå kan du fullføre"
                 allowFinish.await()
-
                 return object : Event() {}
             }
         }
@@ -260,7 +247,12 @@ class TaskListenerTest {
     }
 
     @Test
-    fun `task work completes fully and heartbeat behaves correctly`() = runTest {
+    @DisplayName("""
+    Når onTask gjør ferdig arbeid
+    Hvis heartbeat kjører parallelt
+    Så skal heartbeat kjøre, kanselleres og state nullstilles
+    """)
+    fun taskWorkCompletesAndHeartbeatBehaves() = runTest {
         val workCompleted = CompletableDeferred<Unit>()
 
         val listener = object : TaskListener() {
@@ -319,7 +311,12 @@ class TaskListenerTest {
     }
 
     @Test
-    fun `accept returns false when listener is busy`() = runTest {
+    @DisplayName("""
+    Når listener er opptatt med en task
+    Hvis en ny task forsøkes akseptert
+    Så skal accept() returnere false
+    """)
+    fun acceptReturnsFalseWhenBusy() = runTest {
         val allowFinish = CompletableDeferred<Unit>()
 
         val listener = object : TaskListener() {
@@ -355,15 +352,16 @@ class TaskListenerTest {
     }
 
     @Test
-    fun `accept returns false when supports returns false`() = runTest {
+    @DisplayName("""
+    Når supports() returnerer false
+    Hvis accept() kalles
+    Så skal listener avvise tasken uten å starte jobb
+    """)
+    fun acceptReturnsFalseWhenUnsupported() = runTest {
         val listener = object : TaskListener() {
             override fun getWorkerId() = "worker"
-
             override fun supports(task: Task) = false
-
-            override suspend fun onTask(task: Task): Event? {
-                error("onTask should not be called when supports=false")
-            }
+            override suspend fun onTask(task: Task): Event? = error("Should not be called")
         }
 
         val reporter = FakeReporter()
@@ -378,11 +376,15 @@ class TaskListenerTest {
     }
 
     @Test
-    fun `onError is called when onTask throws`() = runTest {
+    @DisplayName("""
+    Når onTask kaster en exception
+    Hvis listener håndterer feil via onError
+    Så skal cleanup kjøre og state nullstilles
+    """)
+    fun onErrorCalledWhenOnTaskThrows() = runTest {
         val errorLogged = CompletableDeferred<Unit>()
 
         val listener = object : TaskListener() {
-
             override fun getWorkerId() = "worker"
             override fun supports(task: Task) = true
 
@@ -413,14 +415,17 @@ class TaskListenerTest {
         assertNull(listener.heartbeatRunner)
     }
 
-
     @Test
-    fun `onCancelled is called when job is cancelled`() = runTest {
+    @DisplayName("""
+    Når jobben kanselleres mens onTask kjører
+    Hvis listener implementerer onCancelled
+    Så skal onCancelled kalles og cleanup skje
+    """)
+    fun onCancelledCalledWhenJobCancelled() = runTest {
         val allowStart = CompletableDeferred<Unit>()
         val cancelledCalled = CompletableDeferred<Unit>()
 
         val listener = object : TaskListener() {
-
             override fun getWorkerId() = "worker"
             override fun supports(task: Task) = true
 
@@ -459,9 +464,13 @@ class TaskListenerTest {
         assertNull(listener.heartbeatRunner)
     }
 
-
     @Test
-    fun `listener handles two sequential tasks without leaking state`() = runTest {
+    @DisplayName("""
+    Når listener prosesserer to tasks sekvensielt
+    Hvis cleanup fungerer riktig
+    Så skal ingen state lekke mellom tasks
+    """)
+    fun listenerHandlesSequentialTasksWithoutLeakingState() = runTest {
         val finish1 = CompletableDeferred<Unit>()
         val finish2 = CompletableDeferred<Unit>()
 
@@ -507,8 +516,4 @@ class TaskListenerTest {
         // onTask ble kalt to ganger
         assertEquals(2, listener.callCount)
     }
-
-
-
 }
-

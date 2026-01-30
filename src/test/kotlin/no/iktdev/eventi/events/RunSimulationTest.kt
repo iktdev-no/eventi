@@ -14,6 +14,7 @@ import no.iktdev.eventi.MyTime
 import no.iktdev.eventi.ZDS.toPersisted
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Metadata
+import org.junit.jupiter.api.DisplayName
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 
@@ -60,13 +61,12 @@ class TestEvent : Event() {
 }
 
 
-class FakeClock(var now: Instant) {
-    fun advanceSeconds(sec: Long) {
-        now = MyTime.utcNow().plusSeconds(sec)
-    }
-}
-
-
+@DisplayName("""
+EventPollerImplementation – simulert kø og dispatch
+Når polleren leser events fra EventStore og samarbeider med SequenceDispatchQueue
+Hvis køen er ledig, travel, eller events ankommer i ulike tidsrekkefølger
+Så skal polleren oppdatere lastSeenTime, unngå duplikater og prosessere riktig
+""")
 class RunSimulationTestTest {
 
     private lateinit var store: InMemoryEventStore
@@ -95,7 +95,12 @@ class RunSimulationTestTest {
     }
 
     @Test
-    fun `poller updates lastSeenTime when dispatch happens`() = runTest(testDispatcher) {
+    @DisplayName("""
+    Når polleren finner nye events
+    Hvis dispatch skjer normalt
+    Så skal lastSeenTime oppdateres og dispatcheren få én dispatch
+    """)
+    fun pollerUpdatesLastSeenTimeWhenDispatchHappens() = runTest(testDispatcher) {
         val ref = UUID.randomUUID()
         val t = Instant.parse("2026-01-22T12:00:00Z")
 
@@ -108,21 +113,24 @@ class RunSimulationTestTest {
         assertThat(dispatcher.dispatched).hasSize(1)
     }
 
-
     class AlwaysBusyDispatchQueue : SequenceDispatchQueue(8, CoroutineScope(Dispatchers.Default)) {
         override fun isProcessing(referenceId: UUID): Boolean = true
         override fun dispatch(referenceId: UUID, events: List<Event>, dispatcher: EventDispatcher) = null
     }
 
     @Test
-    fun `poller DOES update lastSeenTime even when queue is busy`() = runTest {
+    @DisplayName("""
+    Når køen er travel og ikke kan dispatch'e
+    Hvis polleren likevel ser nye events
+    Så skal lastSeenTime fortsatt oppdateres (livelock-fix)
+    """)
+    fun pollerUpdatesLastSeenTimeEvenWhenQueueBusy() = runTest {
         val ref = UUID.randomUUID()
         val t = Instant.parse("2026-01-22T12:00:00Z")
 
         store.persistAt(TestEvent().withReference(ref), t)
 
         val busyQueue = AlwaysBusyDispatchQueue()
-
         val poller = object : EventPollerImplementation(store, busyQueue, dispatcher) {}
 
         poller.pollOnce()
@@ -133,11 +141,13 @@ class RunSimulationTestTest {
             .isGreaterThan(t)
     }
 
-
-
-
     @Test
-    fun `poller does not double-dispatch`() = runTest(testDispatcher) {
+    @DisplayName("""
+    Når polleren kjører flere ganger uten nye events
+    Hvis første poll allerede dispatch'et eventet
+    Så skal polleren ikke dispatch'e samme event to ganger
+    """)
+    fun pollerDoesNotDoubleDispatch() = runTest(testDispatcher) {
         val ref = UUID.randomUUID()
         val t = Instant.parse("2026-01-22T12:00:00Z")
 
@@ -153,7 +163,12 @@ class RunSimulationTestTest {
     }
 
     @Test
-    fun `poller handles multiple referenceIds`() = runTest(testDispatcher) {
+    @DisplayName("""
+    Når flere referenceId-er har nye events
+    Hvis polleren kjører én runde
+    Så skal begge referenceId-er dispatch'es
+    """)
+    fun pollerHandlesMultipleReferenceIds() = runTest(testDispatcher) {
         val refA = UUID.randomUUID()
         val refB = UUID.randomUUID()
         val t = Instant.parse("2026-01-22T12:00:00Z")
@@ -168,7 +183,12 @@ class RunSimulationTestTest {
     }
 
     @Test
-    fun `poller handles identical timestamps`() = runTest(testDispatcher) {
+    @DisplayName("""
+    Når to events har identisk timestamp
+    Hvis polleren leser dem i samme poll
+    Så skal begge referenceId-er dispatch'es
+    """)
+    fun pollerHandlesIdenticalTimestamps() = runTest(testDispatcher) {
         val refA = UUID.randomUUID()
         val refB = UUID.randomUUID()
         val t = Instant.parse("2026-01-22T12:00:00Z")
@@ -183,7 +203,12 @@ class RunSimulationTestTest {
     }
 
     @Test
-    fun `poller backs off when no new events`() = runTest(testDispatcher) {
+    @DisplayName("""
+    Når polleren ikke finner nye events
+    Hvis pollOnce kjøres
+    Så skal backoff økes
+    """)
+    fun pollerBacksOffWhenNoNewEvents() = runTest(testDispatcher) {
         val before = poller.backoff
 
         poller.pollOnce()
@@ -208,10 +233,13 @@ class RunSimulationTestTest {
         }
     }
 
-
-
     @Test
-    fun `poller processes events arriving while queue is busy`() = runTest(testDispatcher) {
+    @DisplayName("""
+    Når køen er travel for en referenceId
+    Hvis nye events ankommer mens køen er travel
+    Så skal polleren prosessere alle events når køen blir ledig
+    """)
+    fun pollerProcessesEventsArrivingWhileQueueBusy() = runTest(testDispatcher) {
         val ref = UUID.randomUUID()
         val t1 = Instant.parse("2026-01-22T12:00:00Z")
         val t2 = t1.plusSeconds(5)
@@ -242,6 +270,4 @@ class RunSimulationTestTest {
         assertThat(dispatcher.dispatched).hasSize(1)
         assertThat(dispatcher.dispatched.single().second).hasSize(2)
     }
-
-
 }

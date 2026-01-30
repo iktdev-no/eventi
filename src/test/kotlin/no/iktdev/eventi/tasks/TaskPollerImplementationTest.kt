@@ -16,12 +16,19 @@ import no.iktdev.eventi.testUtil.wipe
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import java.time.Duration
 import java.util.UUID
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
 
+@DisplayName("""
+TaskPollerImplementation
+Når polleren henter og prosesserer tasks
+Hvis lyttere, backoff og event-produksjon fungerer som forventet
+Så skal polleren håndtere alle scenarier korrekt
+""")
 class TaskPollerImplementationTest : TestBase() {
 
     @BeforeEach
@@ -32,6 +39,7 @@ class TaskPollerImplementationTest : TestBase() {
     }
 
     private lateinit var eventDeferred: CompletableDeferred<Event>
+
     val reporterFactory = { _: Task ->
         object : TaskReporter {
             override fun markClaimed(taskId: UUID, workerId: String) {}
@@ -47,29 +55,24 @@ class TaskPollerImplementationTest : TestBase() {
         }
     }
 
-    data class EchoTask(var data: String?) : Task() {
-    }
+    data class EchoTask(var data: String?) : Task()
+    data class EchoEvent(var data: String) : Event()
 
-    data class EchoEvent(var data: String) : Event() {
-    }
-
-    class TaskPollerImplementationTest(taskStore: TaskStore, reporterFactory: (Task) -> TaskReporter): TaskPollerImplementation(taskStore, reporterFactory) {
+    class TaskPollerImplementationTest(
+        taskStore: TaskStore,
+        reporterFactory: (Task) -> TaskReporter
+    ) : TaskPollerImplementation(taskStore, reporterFactory) {
         fun overrideSetBackoff(duration: java.time.Duration) {
             backoff = duration
         }
     }
 
-
     open class EchoListener : TaskListener(TaskType.MIXED) {
         var result: Event? = null
 
         fun getJob() = currentJob
-
         override fun getWorkerId() = this.javaClass.simpleName
-
-        override fun supports(task: Task): Boolean {
-            return task is EchoTask
-        }
+        override fun supports(task: Task) = task is EchoTask
 
         override suspend fun onTask(task: Task): Event {
             withHeartbeatRunner(1.seconds) {
@@ -83,36 +86,31 @@ class TaskPollerImplementationTest : TestBase() {
 
         override fun onComplete(task: Task, result: Event?) {
             super.onComplete(task, result)
-            this.result = result;
+            this.result = result
             reporter?.publishEvent(result!!)
         }
-
-        override fun onError(task: Task, exception: Exception) {
-            exception.printStackTrace()
-            super.onError(task, exception)
-        }
-
-        override fun onCancelled(task: Task) {
-            super.onCancelled(task)
-        }
-
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
+    @DisplayName("""
+    Når en EchoTask finnes i TaskStore
+    Hvis polleren prosesserer tasken og lytteren produserer en EchoEvent
+    Så skal eventen publiseres og metadata inneholde korrekt avledningskjede
+    """)
     fun scenario1() = runTest {
-        // Register Task and Event
         TaskTypeRegistry.register(EchoTask::class.java)
         EventTypeRegistry.register(EchoEvent::class.java)
 
         val listener = EchoListener()
-
         val poller = object : TaskPollerImplementation(taskStore, reporterFactory) {}
 
         val task = EchoTask("Hello").newReferenceId().derivedOf(object : Event() {})
         taskStore.persist(task)
+
         poller.pollOnce()
         advanceUntilIdle()
+
         val producedEvent = eventDeferred.await()
         assertThat(producedEvent).isNotNull
         assertThat(producedEvent.metadata.derivedFromId).hasSize(2)
@@ -123,7 +121,12 @@ class TaskPollerImplementationTest : TestBase() {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `poller resets backoff when task is accepted`() = runTest {
+    @DisplayName("""
+    Når en task blir akseptert av lytteren
+    Hvis polleren tidligere har økt backoff
+    Så skal backoff resettes til startverdi
+    """)
+    fun pollerResetsBackoffWhenTaskAccepted() = runTest {
         TaskTypeRegistry.register(EchoTask::class.java)
         EventTypeRegistry.register(EchoEvent::class.java)
 
@@ -132,12 +135,13 @@ class TaskPollerImplementationTest : TestBase() {
         val initialBackoff = poller.backoff
 
         poller.overrideSetBackoff(Duration.ofSeconds(16))
+
         val task = EchoTask("Hello").newReferenceId()
         taskStore.persist(task)
 
         poller.pollOnce()
-
         listener.getJob()?.join()
+
         advanceTimeBy(1.minutes)
         advanceUntilIdle()
 
@@ -146,19 +150,27 @@ class TaskPollerImplementationTest : TestBase() {
     }
 
     @Test
-    fun `poller increases backoff when no tasks`() = runTest {
+    @DisplayName("""
+    Når polleren ikke finner noen tasks
+    Hvis ingen lyttere har noe å gjøre
+    Så skal backoff dobles
+    """)
+    fun pollerIncreasesBackoffWhenNoTasks() = runTest {
         val poller = object : TaskPollerImplementation(taskStore, reporterFactory) {}
         val initialBackoff = poller.backoff
-        val totalBackoff = initialBackoff.multiply(2)
 
         poller.pollOnce()
 
-        assertEquals(totalBackoff, poller.backoff)
+        assertEquals(initialBackoff.multiply(2), poller.backoff)
     }
 
-
     @Test
-    fun `poller increases backoff when no listener supports task`() = runTest {
+    @DisplayName("""
+    Når en task finnes men ingen lyttere støtter den
+    Hvis polleren forsøker å prosessere tasken
+    Så skal backoff dobles
+    """)
+    fun pollerIncreasesBackoffWhenNoListenerSupportsTask() = runTest {
         val poller = object : TaskPollerImplementation(taskStore, reporterFactory) {}
         val initialBackoff = poller.backoff
 
@@ -172,47 +184,50 @@ class TaskPollerImplementationTest : TestBase() {
     }
 
     @Test
-    fun `poller increases backoff when listener is busy`() = runTest {
+    @DisplayName("""
+    Når en lytter er opptatt
+    Hvis polleren forsøker å prosessere en task
+    Så skal backoff dobles
+    """)
+    fun pollerIncreasesBackoffWhenListenerBusy() = runTest {
         val busyListener = object : EchoListener() {
             override val isBusy = true
         }
 
         val poller = object : TaskPollerImplementation(taskStore, reporterFactory) {}
-        val intialBackoff = poller.backoff
+        val initialBackoff = poller.backoff
 
         val task = EchoTask("Busy").newReferenceId()
         taskStore.persist(task)
 
         poller.pollOnce()
 
-        assertEquals(intialBackoff.multiply(2), poller.backoff)
+        assertEquals(initialBackoff.multiply(2), poller.backoff)
     }
 
     @Test
-    fun `poller increases backoff when task is not claimed`() = runTest {
-        val listener = EchoListener()
+    @DisplayName("""
+    Når en task ikke kan claimes av polleren
+    Hvis claim-operasjonen feiler
+    Så skal backoff dobles
+    """)
+    fun pollerIncreasesBackoffWhenTaskNotClaimed() = runTest {
         TaskTypeRegistry.register(EchoTask::class.java)
+
         val task = EchoTask("Unclaimable").newReferenceId()
         taskStore.persist(task)
 
-        // Simuler at claim alltid feiler
         val failingStore = object : InMemoryTaskStore() {
-            override fun claim(taskId: UUID, workerId: String): Boolean = false
+            override fun claim(taskId: UUID, workerId: String) = false
         }
-        val pollerWithFailingClaim = object : TaskPollerImplementation(failingStore, reporterFactory) {}
-        val initialBackoff = pollerWithFailingClaim.backoff
+
+        val poller = object : TaskPollerImplementation(failingStore, reporterFactory) {}
+        val initialBackoff = poller.backoff
 
         failingStore.persist(task)
+        poller.pollOnce()
 
-        pollerWithFailingClaim.pollOnce()
-
-        assertEquals(initialBackoff.multiply(2), pollerWithFailingClaim.backoff)
+        assertEquals(initialBackoff.multiply(2), poller.backoff)
     }
-
-
-
-
-
-
-
 }
+

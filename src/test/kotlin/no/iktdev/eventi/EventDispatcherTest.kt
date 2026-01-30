@@ -20,37 +20,47 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import java.util.UUID
 
-class EventDispatcherTest: TestBase() {
+@DisplayName("""
+EventDispatcher
+Når hendelser dispatches til lyttere
+Hvis hendelsene inneholder avledede, slettede eller nye events
+Så skal dispatcheren håndtere filtrering, replays og historikk korrekt
+""")
+class EventDispatcherTest : TestBase() {
+
     val dispatcher = EventDispatcher(eventStore)
 
-    class DerivedEvent(): Event()
-    class TriggerEvent(): Event() {
-    }
-    class OtherEvent(): Event()
-    class DummyEvent(): Event() {
+    class DerivedEvent : Event()
+    class TriggerEvent : Event()
+    class OtherEvent : Event()
+    class DummyEvent : Event() {
         fun putMetadata(metadata: Metadata) {
             this.metadata = metadata
         }
     }
 
-
     @BeforeEach
     fun setup() {
         EventTypeRegistry.wipe()
         EventListenerRegistry.wipe()
-        // Verifiser at det er tomt
 
-        EventTypeRegistry.register(listOf(
-            DerivedEvent::class.java,
-            TriggerEvent::class.java,
-            OtherEvent::class.java,
-            DummyEvent::class.java
-        ))
+        EventTypeRegistry.register(
+            listOf(
+                DerivedEvent::class.java,
+                TriggerEvent::class.java,
+                OtherEvent::class.java,
+                DummyEvent::class.java
+            )
+        )
     }
 
-
     @Test
-    fun `should produce one event and stop`() {
+    @DisplayName("""
+    Når en TriggerEvent dispatches
+    Hvis en lytter produserer én DerivedEvent
+    Så skal kun én ny event produseres og prosessen stoppe
+    """)
+    fun shouldProduceOneEventAndStop() {
         val listener = ProducingListener()
 
         val trigger = TriggerEvent()
@@ -66,7 +76,12 @@ class EventDispatcherTest: TestBase() {
     }
 
     @Test
-    fun `should skip already derived events`() {
+    @DisplayName("""
+    Når en event allerede har avledet en DerivedEvent
+    Hvis dispatcheren replays historikken
+    Så skal ikke DerivedEvent produseres på nytt
+    """)
+    fun shouldSkipAlreadyDerivedEvents() {
         val listener = ProducingListener()
 
         val trigger = TriggerEvent()
@@ -76,11 +91,16 @@ class EventDispatcherTest: TestBase() {
 
         dispatcher.dispatch(trigger.referenceId, listOf(trigger, derived!!.toEvent()!!))
 
-        assertEquals(1, eventStore.all().size) // no new event produced
+        assertEquals(1, eventStore.all().size)
     }
 
     @Test
-    fun `should pass full context to listener`() {
+    @DisplayName("""
+    Når flere events dispatches
+    Hvis en lytter mottar en event
+    Så skal hele historikken leveres i context
+    """)
+    fun shouldPassFullContextToListener() {
         val listener = ContextCapturingListener()
 
         val e1 = TriggerEvent()
@@ -91,7 +111,12 @@ class EventDispatcherTest: TestBase() {
     }
 
     @Test
-    fun `should behave deterministically across replays`() {
+    @DisplayName("""
+    Når en replay skjer
+    Hvis en event allerede har produsert en DerivedEvent
+    Så skal ikke DerivedEvent produseres på nytt
+    """)
+    fun shouldBehaveDeterministicallyAcrossReplays() {
         val listener = ProducingListener()
 
         val trigger = TriggerEvent()
@@ -100,13 +125,19 @@ class EventDispatcherTest: TestBase() {
 
         dispatcher.dispatch(trigger.referenceId, replayContext)
 
-        assertEquals(1, eventStore.all().size) // no duplicate
+        assertEquals(1, eventStore.all().size)
     }
 
     @Test
-    fun `should not deliver deleted events as candidates`() {
+    @DisplayName("""
+    Når en DeleteEvent peker på en tidligere event
+    Hvis dispatcheren filtrerer kandidater
+    Så skal slettede events ikke leveres som kandidater
+    """)
+    fun shouldNotDeliverDeletedEventsAsCandidates() {
         val dispatcher = EventDispatcher(eventStore)
         val received = mutableListOf<Event>()
+
         object : EventListener() {
             override fun onEvent(event: Event, history: List<Event>): Event? {
                 received += event
@@ -135,7 +166,12 @@ class EventDispatcherTest: TestBase() {
     }
 
     @Test
-    fun `should deliver DeleteEvent to listeners that react to it`() {
+    @DisplayName("""
+    Når en DeleteEvent dispatches alene
+    Hvis en lytter reagerer på DeleteEvent
+    Så skal DeleteEvent leveres som kandidat
+    """)
+    fun shouldDeliverDeleteEventToListenersThatReactToIt() {
         val received = mutableListOf<Event>()
         val listener = object : EventListener() {
             override fun onEvent(event: Event, context: List<Event>): Event? {
@@ -144,16 +180,19 @@ class EventDispatcherTest: TestBase() {
             }
         }
 
-        val deleted = object : DeleteEvent(UUID.randomUUID()) {
-        }
+        val deleted = object : DeleteEvent(UUID.randomUUID()) {}
         dispatcher.dispatch(deleted.referenceId, listOf(deleted))
 
         assertTrue(received.contains(deleted))
     }
 
     @Test
-    @DisplayName("Replay skal ikke levere en event som allerede har avledet en ny")
-    fun `should not re-deliver events that have produced derived events`() {
+    @DisplayName("""
+    Når en event har avledet en ny event
+    Hvis dispatcheren replays historikken
+    Så skal ikke original-eventen leveres som kandidat igjen
+    """)
+    fun shouldNotRedeliverEventsThatHaveProducedDerivedEvents() {
         val listener = ProducingListener()
 
         val trigger = TriggerEvent()
@@ -175,7 +214,90 @@ class EventDispatcherTest: TestBase() {
         }
     }
 
+    @Test
+    @DisplayName("""
+    Når en DeleteEvent slettet en tidligere event
+    Hvis dispatcheren bygger historikk
+    Så skal slettede events ikke være med i history
+    """)
+    fun historyShouldExcludeDeletedEvents() {
+        val dispatcher = EventDispatcher(eventStore)
 
+        val original = TriggerEvent()
+        val deleted = object : DeleteEvent(original.eventId) {}
+
+        var receivedHistory: List<Event> = emptyList()
+
+        val listener = object : EventListener() {
+            override fun onEvent(event: Event, history: List<Event>): Event? {
+                receivedHistory = history
+                return null
+            }
+        }
+
+        dispatcher.dispatch(original.referenceId, listOf(original, deleted))
+
+        assertFalse(receivedHistory.contains(original))
+        assertFalse(receivedHistory.contains(deleted))
+    }
+
+    @Test
+    @DisplayName("""
+    Når en DeleteEvent slettet en event
+    Hvis andre events fortsatt er gyldige
+    Så skal history kun inneholde de ikke-slettede events
+    """)
+    fun historyShouldKeepNonDeletedEvents() {
+        val dispatcher = EventDispatcher(eventStore)
+
+        val e1 = TriggerEvent()
+        val e2 = OtherEvent()
+        val deleted = object : DeleteEvent(e1.eventId) {}
+
+        var receivedHistory: List<Event> = emptyList()
+
+        val listener = object : EventListener() {
+            override fun onEvent(event: Event, history: List<Event>): Event? {
+                receivedHistory = history
+                return null
+            }
+        }
+
+        dispatcher.dispatch(e1.referenceId, listOf(e1, e2, deleted))
+
+        assertTrue(receivedHistory.contains(e2))
+        assertFalse(receivedHistory.contains(e1))
+        assertFalse(receivedHistory.contains(deleted))
+    }
+
+    @Test
+    @DisplayName("""
+    Når en DeleteEvent er kandidat
+    Hvis historikken kun inneholder slettede events
+    Så skal history være tom
+    """)
+    fun deleteEventShouldBeDeliveredButHistoryEmpty() {
+        val dispatcher = EventDispatcher(eventStore)
+
+        val original = TriggerEvent()
+        val deleted = object : DeleteEvent(original.eventId) {}
+
+        var receivedEvent: Event? = null
+        var receivedHistory: List<Event> = emptyList()
+
+        val listener = object : EventListener() {
+            override fun onEvent(event: Event, history: List<Event>): Event? {
+                receivedEvent = event
+                receivedHistory = history
+                return null
+            }
+        }
+
+        dispatcher.dispatch(original.referenceId, listOf(original, deleted))
+
+        assertTrue(receivedEvent is DeleteEvent)
+        assertTrue(receivedHistory.isEmpty())
+    }
 
     // --- Test helpers ---
 

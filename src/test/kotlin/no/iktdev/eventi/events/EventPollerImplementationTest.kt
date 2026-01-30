@@ -20,15 +20,22 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
+import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import java.time.Duration
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
+@DisplayName("""
+EventPollerImplementation
+Når polleren leser nye events fra EventStore og samarbeider med SequenceDispatchQueue
+Hvis nye events ankommer, køen er travel, eller duplikater dukker opp
+Så skal polleren dispatch'e riktig, oppdatere lastSeenTime og unngå duplikater
+""")
 class EventPollerImplementationTest : TestBase() {
+
     val dispatcher = EventDispatcher(eventStore)
     val queue = SequenceDispatchQueue(maxConcurrency = 8)
-
     val poller = object : EventPollerImplementation(eventStore, queue, dispatcher) {}
 
     @BeforeEach
@@ -36,45 +43,57 @@ class EventPollerImplementationTest : TestBase() {
         EventTypeRegistry.wipe()
         EventListenerRegistry.wipe()
         eventStore.clear()
-        // Verifiser at det er tomt
 
-        EventTypeRegistry.register(listOf(
-            DerivedEvent::class.java,
-            TriggerEvent::class.java,
-            OtherEvent::class.java
-        ))
+        EventTypeRegistry.register(
+            listOf(
+                DerivedEvent::class.java,
+                TriggerEvent::class.java,
+                OtherEvent::class.java
+            )
+        )
     }
 
     @Test
-    fun `pollOnce should dispatch all new referenceIds and update lastSeenTime`() = runTest {
+    @DisplayName("""
+    Når polleren finner nye referenceId-er med events
+    Hvis pollOnce kjøres
+    Så skal alle referenceId-er dispatch'es og lastSeenTime oppdateres
+    """)
+    fun pollOnceDispatchesAllNewReferenceIdsAndUpdatesLastSeenTime() = runTest {
         val dispatched = ConcurrentHashMap.newKeySet<UUID>()
         val completionMap = mutableMapOf<UUID, CompletableDeferred<Unit>>()
 
-        EventListenerRegistry.registerListener(object : EventListener() {
-            override fun onEvent(event: Event, context: List<Event>): Event? {
-                dispatched += event.referenceId
-                completionMap[event.referenceId]?.complete(Unit)
-                return null
+        EventListenerRegistry.registerListener(
+            object : EventListener() {
+                override fun onEvent(event: Event, context: List<Event>): Event? {
+                    dispatched += event.referenceId
+                    completionMap[event.referenceId]?.complete(Unit)
+                    return null
+                }
             }
-        })
+        )
 
         val referenceIds = (1..10).map { UUID.randomUUID() }
 
         referenceIds.forEach { refId ->
-            val e = EventDispatcherTest.TriggerEvent().usingReferenceId(refId)
-            eventStore.persist(e) // persistedAt settes automatisk her
+            val e = TriggerEvent().usingReferenceId(refId)
+            eventStore.persist(e)
             completionMap[refId] = CompletableDeferred()
         }
 
         poller.pollOnce()
-
         completionMap.values.awaitAll()
 
         assertEquals(referenceIds.toSet(), dispatched)
     }
 
     @Test
-    fun `pollOnce should increase backoff when no events and reset when events arrive`() = runTest {
+    @DisplayName("""
+    Når polleren ikke finner nye events
+    Hvis pollOnce kjøres flere ganger
+    Så skal backoff øke, og resettes når nye events ankommer
+    """)
+    fun pollOnceIncreasesBackoffWhenNoEventsAndResetsWhenEventsArrive() = runTest {
         val testPoller = object : EventPollerImplementation(eventStore, queue, dispatcher) {
             fun currentBackoff(): Duration = backoff
         }
@@ -97,15 +116,19 @@ class EventPollerImplementationTest : TestBase() {
     }
 
     @Test
-    fun `pollOnce should group and dispatch exactly 3 events for one referenceId`() = runTest {
+    @DisplayName("""
+    Når flere events med samme referenceId ligger i EventStore
+    Hvis pollOnce kjøres
+    Så skal polleren gruppere og dispatch'e alle tre i én batch
+    """)
+    fun pollOnceGroupsAndDispatchesExactlyThreeEventsForOneReferenceId() = runTest {
         val refId = UUID.randomUUID()
         val received = mutableListOf<Event>()
         val done = CompletableDeferred<Unit>()
 
-        // Wipe alt før test
         EventTypeRegistry.wipe()
         EventListenerRegistry.wipe()
-        eventStore.clear() // sørg for at InMemoryEventStore støtter dette
+        eventStore.clear()
 
         EventTypeRegistry.register(listOf(TriggerEvent::class.java))
 
@@ -122,16 +145,19 @@ class EventPollerImplementationTest : TestBase() {
         }
 
         poller.pollOnce()
-
         done.await()
 
         assertEquals(3, received.size)
         assertTrue(received.all { it.referenceId == refId })
     }
 
-
     @Test
-    fun `pollOnce should ignore events before lastSeenTime`() = runTest {
+    @DisplayName("""
+    Når polleren har en lastSeenTime i fremtiden
+    Hvis events ankommer med eldre timestamp
+    Så skal polleren ignorere dem
+    """)
+    fun pollOnceIgnoresEventsBeforeLastSeenTime() = runTest {
         val refId = UUID.randomUUID()
         val ignored = TriggerEvent().usingReferenceId(refId)
 
@@ -142,7 +168,6 @@ class EventPollerImplementationTest : TestBase() {
         }
 
         eventStore.persist(ignored)
-
         testPoller.pollOnce()
 
         assertFalse(queue.isProcessing(refId))
@@ -150,45 +175,41 @@ class EventPollerImplementationTest : TestBase() {
 
     @OptIn(ExperimentalCoroutinesApi::class)
     @Test
-    fun `poller handles manually injected duplicate event`() = runTest {
+    @DisplayName("""
+    Når en duplikat-event injiseres manuelt i EventStore
+    Hvis polleren kjører igjen
+    Så skal begge events prosesseres, men uten å produsere duplikate derived events
+    """)
+    fun pollerHandlesManuallyInjectedDuplicateEvent() = runTest {
         EventTypeRegistry.register(listOf(MarcoEvent::class.java, EchoEvent::class.java))
         val channel = Channel<Event>(Channel.UNLIMITED)
         val handled = mutableListOf<Event>()
 
-
-        // Setup
         object : EventListener() {
-
             override fun onEvent(event: Event, context: List<Event>): Event? {
-                if (event !is EchoEvent)
-                    return null
+                if (event !is EchoEvent) return null
                 handled += event
                 channel.trySend(event)
                 return MarcoEvent(true).derivedOf(event)
             }
         }
 
-        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher) {
-        }
+        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher) {}
 
-        // Original event
-        val original = EchoEvent(data = "Hello")
+        val original = EchoEvent("Hello")
         eventStore.persist(original)
 
-        // Act
         poller.pollOnce()
+
         withContext(Dispatchers.Default.limitedParallelism(1)) {
             withTimeout(Duration.ofMinutes(1).toMillis()) {
                 repeat(1) { channel.receive() }
             }
         }
 
-        // Manual replay with new eventId, same referenceId
         val duplicateEvent = EchoEvent("Test me").usingReferenceId(original.referenceId)
-
         eventStore.persist(duplicateEvent)
 
-        // Act
         poller.pollOnce()
 
         withContext(Dispatchers.Default.limitedParallelism(1)) {
@@ -197,14 +218,7 @@ class EventPollerImplementationTest : TestBase() {
             }
         }
 
-
-
-        // Assert
         assertEquals(2, handled.size)
         assertTrue(handled.any { it.eventId == original.eventId })
     }
-
-
-
-
 }

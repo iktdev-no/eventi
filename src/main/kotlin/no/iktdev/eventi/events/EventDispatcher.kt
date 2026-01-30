@@ -14,9 +14,14 @@ open class EventDispatcher(val eventStore: EventStore) {
             .filter { it.eventId !in derivedFromIds }
             .filter { it.eventId !in deletedEventIds }
 
+        val effectiveHistory = events
+            .filter { it.eventId !in deletedEventIds }        // fjern slettede events
+            .filterNot { it is DeleteEvent }                  // fjern selve delete-eventet
+
+
         EventListenerRegistry.getListeners().forEach { listener ->
             for (candidate in candidates) {
-                val result = listener.onEvent(candidate, events)
+                val result = listener.onEvent(candidate, effectiveHistory)
                 if (result != null) {
                     eventStore.persist(result)
                 }
