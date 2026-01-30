@@ -69,10 +69,16 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
                 val result = onTask(task)
                 reporter.markCompleted(task.taskId)
                 onComplete(task, result)
+
             } catch (e: CancellationException) {
-                onCancelled()
+                // Dette er en ekte kansellering
+                onCancelled(task)
+                throw e // viktig: ikke svelg cancellation
+
             } catch (e: Exception) {
+                // Dette er en faktisk feil
                 onError(task, e)
+
             } finally {
                 heartbeatRunner?.cancel()
                 currentJob?.cancel()
@@ -82,6 +88,7 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
                 this@TaskListener.reporter = null
             }
         }
+
         return true
     }
 
@@ -99,7 +106,8 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
         }
     }
 
-    override fun onCancelled() {
+    override fun onCancelled(task: Task) {
+        reporter!!.markCancelled(task.taskId)
         currentJob?.cancel()
         heartbeatRunner?.cancel()
         currentTask = null
@@ -119,7 +127,7 @@ interface TaskListenerImplementation {
     suspend fun onTask(task: Task): Event?
     fun onComplete(task: Task, result: Event?)
     fun onError(task: Task, exception: Exception)
-    fun onCancelled()
+    fun onCancelled(task: Task)
 }
 
 interface TaskReporter {
@@ -127,6 +135,7 @@ interface TaskReporter {
     fun updateLastSeen(taskId: UUID)
     fun markCompleted(taskId: UUID)
     fun markFailed(taskId: UUID)
+    fun markCancelled(taskId: UUID)
     fun updateProgress(taskId: UUID, progress: Int)
     fun log(taskId: UUID, message: String)
     fun publishEvent(event: Event)

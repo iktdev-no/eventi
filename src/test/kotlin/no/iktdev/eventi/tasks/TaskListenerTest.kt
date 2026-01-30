@@ -9,7 +9,6 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Task
-import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.Test
 import java.util.UUID
@@ -40,6 +39,9 @@ class TaskListenerTest {
 
         override fun markFailed(taskId: UUID) {
             consumed = true
+        }
+
+        override fun markCancelled(taskId: UUID) {
         }
 
         override fun updateProgress(taskId: UUID, progress: Int) {
@@ -428,8 +430,8 @@ class TaskListenerTest {
                 return null
             }
 
-            override fun onCancelled() {
-                super.onCancelled()
+            override fun onCancelled(task: Task) {
+                super.onCancelled(task)
                 cancelledCalled.complete(Unit)
             }
         }
