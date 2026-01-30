@@ -21,5 +21,6 @@ enum class TaskStatus {
     Pending,
     InProgress,
     Completed,
-    Failed
+    Failed,
+    Cancelled
 }
