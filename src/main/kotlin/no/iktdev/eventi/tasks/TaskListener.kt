@@ -95,7 +95,7 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
     override fun onError(task: Task, exception: Exception) {
         reporter?.log(task.taskId, "Error processing task: ${exception.message}")
         exception.printStackTrace()
-        reporter?.markCompleted(task.taskId)
+        reporter?.markFailed(task.taskId)
     }
 
     override fun onComplete(task: Task, result: Event?) {
