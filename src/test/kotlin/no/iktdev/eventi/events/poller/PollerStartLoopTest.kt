@@ -1,5 +1,6 @@
 package no.iktdev.eventi.events.poller
 
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.*
 import no.iktdev.eventi.InMemoryEventStore
 import no.iktdev.eventi.MyTime
@@ -23,6 +24,7 @@ import org.assertj.core.api.Assertions.assertThat
 import java.time.Duration
 
 
+@ExperimentalCoroutinesApi
 @DisplayName("""
 EventPollerImplementation – start-loop
 Når polleren kjører i en kontrollert test-loop

@@ -8,7 +8,6 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
-import no.iktdev.eventi.EventDispatcherTest
 import no.iktdev.eventi.EventDispatcherTest.DerivedEvent
 import no.iktdev.eventi.EventDispatcherTest.OtherEvent
 import no.iktdev.eventi.EventDispatcherTest.TriggerEvent
@@ -65,7 +64,7 @@ class EventPollerImplementationTest : TestBase() {
 
         EventListenerRegistry.registerListener(
             object : EventListener() {
-                override fun onEvent(event: Event, context: List<Event>): Event? {
+                override fun onEvent(event: Event, history: List<Event>): Event? {
                     dispatched += event.referenceId
                     completionMap[event.referenceId]?.complete(Unit)
                     return null
@@ -133,7 +132,7 @@ class EventPollerImplementationTest : TestBase() {
         EventTypeRegistry.register(listOf(TriggerEvent::class.java))
 
         object : EventListener() {
-            override fun onEvent(event: Event, context: List<Event>): Event? {
+            override fun onEvent(event: Event, history: List<Event>): Event? {
                 received += event
                 if (received.size == 3) done.complete(Unit)
                 return null
@@ -186,7 +185,7 @@ class EventPollerImplementationTest : TestBase() {
         val handled = mutableListOf<Event>()
 
         object : EventListener() {
-            override fun onEvent(event: Event, context: List<Event>): Event? {
+            override fun onEvent(event: Event, history: List<Event>): Event? {
                 if (event !is EchoEvent) return null
                 handled += event
                 channel.trySend(event)

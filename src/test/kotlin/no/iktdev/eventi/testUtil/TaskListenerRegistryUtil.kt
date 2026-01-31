@@ -15,6 +15,7 @@ fun TaskListenerRegistry.wipe() {
 
     // Tøm map’en
     val mutableList = field.get(TaskListenerRegistry) as MutableList<*>
+    @Suppress("UNCHECKED_CAST")
     (mutableList as MutableList<Class<out TaskListener>>).clear()
 
     // Verifiser at det er tomt

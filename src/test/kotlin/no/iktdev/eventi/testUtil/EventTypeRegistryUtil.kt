@@ -13,6 +13,7 @@ fun EventTypeRegistry.wipe() {
 
     // Tøm map’en
     val typesMap = field.get(EventTypeRegistry) as MutableMap<*, *>
+    @Suppress("UNCHECKED_CAST")
     (typesMap as MutableMap<String, Class<out Event>>).clear()
 
     // Verifiser at det er tomt

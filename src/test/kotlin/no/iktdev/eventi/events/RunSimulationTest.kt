@@ -1,7 +1,7 @@
+@file:OptIn(ExperimentalCoroutinesApi::class)
+
 package no.iktdev.eventi.events
 
-import io.mockk.every
-import io.mockk.mockk
 import kotlinx.coroutines.*
 import kotlinx.coroutines.test.*
 import no.iktdev.eventi.InMemoryEventStore
@@ -9,9 +9,6 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import java.util.UUID
-import kotlinx.coroutines.*
-import no.iktdev.eventi.MyTime
-import no.iktdev.eventi.ZDS.toPersisted
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Metadata
 import org.junit.jupiter.api.DisplayName
@@ -89,7 +86,7 @@ class RunSimulationTestTest {
         }
     }
 
-    private fun persistEvent(ref: UUID, time: Instant) {
+    private fun persistEvent(ref: UUID) {
         val e = TestEvent().withReference(ref)
         store.persist(e.setMetadata(Metadata()))
     }
@@ -102,9 +99,8 @@ class RunSimulationTestTest {
     """)
     fun pollerUpdatesLastSeenTimeWhenDispatchHappens() = runTest(testDispatcher) {
         val ref = UUID.randomUUID()
-        val t = Instant.parse("2026-01-22T12:00:00Z")
 
-        persistEvent(ref, t)
+        persistEvent(ref)
 
         poller.pollOnce()
         advanceUntilIdle()
@@ -149,9 +145,8 @@ class RunSimulationTestTest {
     """)
     fun pollerDoesNotDoubleDispatch() = runTest(testDispatcher) {
         val ref = UUID.randomUUID()
-        val t = Instant.parse("2026-01-22T12:00:00Z")
 
-        persistEvent(ref, t)
+        persistEvent(ref)
 
         poller.pollOnce()
         advanceUntilIdle()
@@ -171,10 +166,9 @@ class RunSimulationTestTest {
     fun pollerHandlesMultipleReferenceIds() = runTest(testDispatcher) {
         val refA = UUID.randomUUID()
         val refB = UUID.randomUUID()
-        val t = Instant.parse("2026-01-22T12:00:00Z")
 
-        persistEvent(refA, t)
-        persistEvent(refB, t.plusSeconds(1))
+        persistEvent(refA)
+        persistEvent(refB)
 
         poller.pollOnce()
         advanceUntilIdle()
@@ -191,10 +185,9 @@ class RunSimulationTestTest {
     fun pollerHandlesIdenticalTimestamps() = runTest(testDispatcher) {
         val refA = UUID.randomUUID()
         val refB = UUID.randomUUID()
-        val t = Instant.parse("2026-01-22T12:00:00Z")
 
-        persistEvent(refA, t)
-        persistEvent(refB, t)
+        persistEvent(refA)
+        persistEvent(refB)
 
         poller.pollOnce()
         advanceUntilIdle()
@@ -242,9 +235,8 @@ class RunSimulationTestTest {
     fun pollerProcessesEventsArrivingWhileQueueBusy() = runTest(testDispatcher) {
         val ref = UUID.randomUUID()
         val t1 = Instant.parse("2026-01-22T12:00:00Z")
-        val t2 = t1.plusSeconds(5)
 
-        persistEvent(ref, t1)
+        persistEvent(ref)
 
         val controlledQueue = ControlledDispatchQueue(scope)
         controlledQueue.busyRefs += ref
@@ -261,7 +253,7 @@ class RunSimulationTestTest {
         controlledQueue.busyRefs.clear()
 
         // Add new event
-        persistEvent(ref, t2)
+        persistEvent(ref)
 
         // Poll #2: should dispatch both events
         poller.pollOnce()

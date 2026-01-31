@@ -13,6 +13,7 @@ fun EventListenerRegistry.wipe() {
 
     // Tøm map’en
     val mutableList = field.get(EventListenerRegistry) as MutableList<*>
+    @Suppress("UNCHECKED_CAST")
     (mutableList as MutableList<Class<out EventListener>>).clear()
 
     // Verifiser at det er tomt

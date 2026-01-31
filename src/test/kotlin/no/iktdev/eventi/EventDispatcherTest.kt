@@ -8,7 +8,6 @@ import no.iktdev.eventi.events.EventListenerRegistry
 import no.iktdev.eventi.events.EventTypeRegistry
 import no.iktdev.eventi.models.DeleteEvent
 import no.iktdev.eventi.models.Event
-import no.iktdev.eventi.models.Metadata
 import no.iktdev.eventi.testUtil.wipe
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -34,9 +33,6 @@ class EventDispatcherTest : TestBase() {
     class TriggerEvent : Event()
     class OtherEvent : Event()
     class DummyEvent : Event() {
-        fun putMetadata(metadata: Metadata) {
-            this.metadata = metadata
-        }
     }
 
     @BeforeEach
@@ -61,7 +57,7 @@ class EventDispatcherTest : TestBase() {
     Så skal kun én ny event produseres og prosessen stoppe
     """)
     fun shouldProduceOneEventAndStop() {
-        val listener = ProducingListener()
+        ProducingListener()
 
         val trigger = TriggerEvent()
         dispatcher.dispatch(trigger.referenceId, listOf(trigger))
@@ -71,7 +67,7 @@ class EventDispatcherTest : TestBase() {
 
         val event = produced!!.toEvent()
         assertThat(event!!.metadata.derivedFromId).hasSize(1)
-        assertThat(event!!.metadata.derivedFromId).contains(trigger.eventId)
+        assertThat(event.metadata.derivedFromId).contains(trigger.eventId)
         assertTrue(event is DerivedEvent)
     }
 
@@ -82,14 +78,14 @@ class EventDispatcherTest : TestBase() {
     Så skal ikke DerivedEvent produseres på nytt
     """)
     fun shouldSkipAlreadyDerivedEvents() {
-        val listener = ProducingListener()
+        ProducingListener()
 
         val trigger = TriggerEvent()
         val derived = DerivedEvent().derivedOf(trigger).toPersisted(1L, MyTime.utcNow())
 
         eventStore.persist(derived!!.toEvent()!!) // simulate prior production
 
-        dispatcher.dispatch(trigger.referenceId, listOf(trigger, derived!!.toEvent()!!))
+        dispatcher.dispatch(trigger.referenceId, listOf(trigger, derived.toEvent()!!))
 
         assertEquals(1, eventStore.all().size)
     }
@@ -117,7 +113,7 @@ class EventDispatcherTest : TestBase() {
     Så skal ikke DerivedEvent produseres på nytt
     """)
     fun shouldBehaveDeterministicallyAcrossReplays() {
-        val listener = ProducingListener()
+        ProducingListener()
 
         val trigger = TriggerEvent()
         dispatcher.dispatch(trigger.referenceId, listOf(trigger))
@@ -173,8 +169,8 @@ class EventDispatcherTest : TestBase() {
     """)
     fun shouldDeliverDeleteEventToListenersThatReactToIt() {
         val received = mutableListOf<Event>()
-        val listener = object : EventListener() {
-            override fun onEvent(event: Event, context: List<Event>): Event? {
+        object : EventListener() {
+            override fun onEvent(event: Event, history: List<Event>): Event? {
                 if (event is DeleteEvent) received += event
                 return null
             }
@@ -193,7 +189,7 @@ class EventDispatcherTest : TestBase() {
     Så skal ikke original-eventen leveres som kandidat igjen
     """)
     fun shouldNotRedeliverEventsThatHaveProducedDerivedEvents() {
-        val listener = ProducingListener()
+        ProducingListener()
 
         val trigger = TriggerEvent()
         // Første dispatch: trigger produserer en DerivedEvent
@@ -228,7 +224,7 @@ class EventDispatcherTest : TestBase() {
 
         var receivedHistory: List<Event> = emptyList()
 
-        val listener = object : EventListener() {
+        object : EventListener() {
             override fun onEvent(event: Event, history: List<Event>): Event? {
                 receivedHistory = history
                 return null
@@ -256,7 +252,7 @@ class EventDispatcherTest : TestBase() {
 
         var receivedHistory: List<Event> = emptyList()
 
-        val listener = object : EventListener() {
+        object : EventListener() {
             override fun onEvent(event: Event, history: List<Event>): Event? {
                 receivedHistory = history
                 return null
@@ -285,7 +281,7 @@ class EventDispatcherTest : TestBase() {
         var receivedEvent: Event? = null
         var receivedHistory: List<Event> = emptyList()
 
-        val listener = object : EventListener() {
+        object : EventListener() {
             override fun onEvent(event: Event, history: List<Event>): Event? {
                 receivedEvent = event
                 receivedHistory = history
@@ -302,15 +298,15 @@ class EventDispatcherTest : TestBase() {
     // --- Test helpers ---
 
     class ProducingListener : EventListener() {
-        override fun onEvent(event: Event, context: List<Event>): Event? {
+        override fun onEvent(event: Event, history: List<Event>): Event? {
             return if (event is TriggerEvent) DerivedEvent().derivedOf(event) else null
         }
     }
 
     class ContextCapturingListener : EventListener() {
         var context: List<Event> = emptyList()
-        override fun onEvent(event: Event, context: List<Event>): Event? {
-            this.context = context
+        override fun onEvent(event: Event, history: List<Event>): Event? {
+            this.context = history
             return null
         }
     }

@@ -15,6 +15,7 @@ fun TaskTypeRegistry.wipe() {
 
     // Tøm map’en
     val typesMap = field.get(TaskTypeRegistry) as MutableMap<*, *>
+    @Suppress("UNCHECKED_CAST")
     (typesMap as MutableMap<String, Class<out Task>>).clear()
 
     // Verifiser at det er tomt

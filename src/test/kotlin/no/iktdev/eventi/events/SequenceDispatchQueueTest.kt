@@ -51,7 +51,7 @@ class SequenceDispatchQueueTest : TestBase() {
 
         EventListenerRegistry.registerListener(
             object : EventListener() {
-                override fun onEvent(event: Event, context: List<Event>): Event? {
+                override fun onEvent(event: Event, history: List<Event>): Event? {
                     dispatched += event.referenceId
                     Thread.sleep(50) // simuler tung prosessering
                     return null
