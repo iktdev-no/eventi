@@ -2,13 +2,12 @@ package no.iktdev.eventi.events.poller
 
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
-import kotlinx.coroutines.test.advanceTimeBy
 import no.iktdev.eventi.events.EventDispatcher
 import no.iktdev.eventi.events.EventPollerImplementation
 import no.iktdev.eventi.events.SequenceDispatchQueue
 import no.iktdev.eventi.stores.EventStore
 import java.time.Instant
-import java.util.UUID
+import java.util.*
 
 @ExperimentalCoroutinesApi
 class TestablePoller(

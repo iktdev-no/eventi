@@ -102,7 +102,6 @@ class PollerStartLoopTest : TestBase() {
     """)
     fun `poller resets backoff when events appear`() = runTest {
         poller.startFor(iterations = 5)
-        val before = poller.backoff
 
         val ref = UUID.randomUUID()
         persistAt(ref, MyTime.utcNow())
@@ -406,7 +405,7 @@ class PollerStartLoopTest : TestBase() {
 
         // Fake EventStore som alltid returnerer samme event
         val fakeStore = object : EventStore {
-            override fun getPersistedEventsAfter(ts: Instant): List<PersistedEvent> {
+            override fun getPersistedEventsAfter(timestamp: Instant): List<PersistedEvent> {
                 // Alltid returner én event som ligger før watermark
                 return listOf(
                     PersistedEvent(
@@ -420,7 +419,7 @@ class PollerStartLoopTest : TestBase() {
                 )
             }
 
-            override fun getPersistedEventsFor(ref: UUID): List<PersistedEvent> = emptyList()
+            override fun getPersistedEventsFor(referenceId: UUID): List<PersistedEvent> = emptyList()
             override fun persist(event: Event) = Unit
         }
 

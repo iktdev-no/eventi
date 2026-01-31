@@ -1,12 +1,11 @@
 package no.iktdev.eventi.testUtil
 
-import no.iktdev.eventi.events.EventTypeRegistry
-import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Task
 import no.iktdev.eventi.tasks.TaskTypeRegistry
 import org.junit.jupiter.api.Assertions.assertNull
 import java.lang.reflect.Field
 
+@Suppress("UNUSED_RECEIVER_PARAMETER")
 fun TaskTypeRegistry.wipe() {
     val field: Field = TaskTypeRegistry::class.java
         .superclass

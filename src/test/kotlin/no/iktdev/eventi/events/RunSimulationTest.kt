@@ -234,7 +234,6 @@ class RunSimulationTestTest {
     """)
     fun pollerProcessesEventsArrivingWhileQueueBusy() = runTest(testDispatcher) {
         val ref = UUID.randomUUID()
-        val t1 = Instant.parse("2026-01-22T12:00:00Z")
 
         persistEvent(ref)
 
