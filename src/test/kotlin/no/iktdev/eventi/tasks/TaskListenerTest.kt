@@ -9,6 +9,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Task
+import no.iktdev.eventi.models.store.TaskStatus
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -65,6 +66,14 @@ class TaskListenerTest {
             var onTaskCalled = false
 
             override fun getWorkerId() = "worker"
+            override fun createIncompleteStateTaskEvent(
+                task: Task,
+                status: TaskStatus,
+                exception: Exception?
+            ): Event {
+                return object : Event() {}
+            }
+
             override fun supports(task: Task) = true
 
             override suspend fun onTask(task: Task): Event? {
@@ -112,11 +121,21 @@ class TaskListenerTest {
 
             var heartbeatStarted: Job? = null
             var heartbeatRan = false
+            override fun getWorkerId(): String {
+                return UUID.randomUUID().toString()
+            }
 
-            override fun getWorkerId() = "worker"
+            override fun createIncompleteStateTaskEvent(
+                task: Task,
+                status: TaskStatus,
+                exception: Exception?
+            ): Event {
+                return object : Event() {}
+            }
+
             override fun supports(task: Task) = true
 
-            override suspend fun onTask(task: Task): Event? {
+            override suspend fun onTask(task: Task): Event {
 
                 // Start heartbeat
                 withHeartbeatRunner(10.milliseconds) {
@@ -183,6 +202,14 @@ class TaskListenerTest {
             var heartbeatRan = false
 
             override fun getWorkerId() = "worker"
+            override fun createIncompleteStateTaskEvent(
+                task: Task,
+                status: TaskStatus,
+                exception: Exception?
+            ): Event {
+                return object : Event() {}
+            }
+
             override fun supports(task: Task) = true
 
             override suspend fun onTask(task: Task): Event? {
@@ -262,9 +289,17 @@ class TaskListenerTest {
             var onTaskCalled = false
 
             override fun getWorkerId() = "worker"
+            override fun createIncompleteStateTaskEvent(
+                task: Task,
+                status: TaskStatus,
+                exception: Exception?
+            ): Event {
+                return object : Event() {}
+            }
+
             override fun supports(task: Task) = true
 
-            override suspend fun onTask(task: Task): Event? {
+            override suspend fun onTask(task: Task): Event {
                 onTaskCalled = true
 
                 withHeartbeatRunner(10.milliseconds) {
@@ -321,6 +356,14 @@ class TaskListenerTest {
 
         val listener = object : TaskListener() {
             override fun getWorkerId() = "worker"
+            override fun createIncompleteStateTaskEvent(
+                task: Task,
+                status: TaskStatus,
+                exception: Exception?
+            ): Event {
+                return object : Event() {}
+            }
+
             override fun supports(task: Task) = true
 
             override suspend fun onTask(task: Task): Event? {
@@ -360,6 +403,14 @@ class TaskListenerTest {
     fun acceptReturnsFalseWhenUnsupported() = runTest {
         val listener = object : TaskListener() {
             override fun getWorkerId() = "worker"
+            override fun createIncompleteStateTaskEvent(
+                task: Task,
+                status: TaskStatus,
+                exception: Exception?
+            ): Event {
+                return object : Event() {}
+            }
+
             override fun supports(task: Task) = false
             override suspend fun onTask(task: Task): Event? = error("Should not be called")
         }
@@ -386,6 +437,14 @@ class TaskListenerTest {
 
         val listener = object : TaskListener() {
             override fun getWorkerId() = "worker"
+            override fun createIncompleteStateTaskEvent(
+                task: Task,
+                status: TaskStatus,
+                exception: Exception?
+            ): Event {
+                return object : Event() {}
+            }
+
             override fun supports(task: Task) = true
 
             override suspend fun onTask(task: Task): Event? {
@@ -427,6 +486,14 @@ class TaskListenerTest {
 
         val listener = object : TaskListener() {
             override fun getWorkerId() = "worker"
+            override fun createIncompleteStateTaskEvent(
+                task: Task,
+                status: TaskStatus,
+                exception: Exception?
+            ): Event {
+                return object : Event() {}
+            }
+
             override fun supports(task: Task) = true
 
             override suspend fun onTask(task: Task): Event? {
@@ -466,10 +533,10 @@ class TaskListenerTest {
 
     @Test
     @DisplayName("""
-Når listener prosesserer to tasks sekvensielt
-Hvis cleanup fungerer riktig
-Så skal ingen state lekke mellom tasks
-""")
+    Når listener prosesserer to tasks sekvensielt
+    Hvis cleanup fungerer riktig
+    Så skal ingen state lekke mellom tasks
+    """)
     fun listenerHandlesSequentialTasksWithoutLeakingState() = runTest {
         val started1 = CompletableDeferred<Unit>()
         val finish1 = CompletableDeferred<Unit>()
@@ -482,6 +549,14 @@ Så skal ingen state lekke mellom tasks
             var callCount = 0
 
             override fun getWorkerId() = "worker"
+            override fun createIncompleteStateTaskEvent(
+                task: Task,
+                status: TaskStatus,
+                exception: Exception?
+            ): Event {
+                return object : Event() {}
+            }
+
             override fun supports(task: Task) = true
 
             override suspend fun onTask(task: Task): Event {

@@ -5,6 +5,7 @@ import no.iktdev.eventi.events.EventListener
 import no.iktdev.eventi.events.EventListenerRegistry
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Task
+import no.iktdev.eventi.models.store.TaskStatus
 import no.iktdev.eventi.testUtil.wipe
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.*
@@ -19,6 +20,15 @@ class TaskListenerRegistryTest {
         override fun getWorkerId(): String {
             TODO("Not yet implemented")
         }
+
+        override fun createIncompleteStateTaskEvent(
+            task: Task,
+            status: TaskStatus,
+            exception: Exception?
+        ): Event {
+            TODO("Not yet implemented")
+        }
+
         override fun supports(task: Task): Boolean {
             TODO("Not yet implemented")
         }
@@ -32,6 +42,15 @@ class TaskListenerRegistryTest {
         override fun getWorkerId(): String {
             TODO("Not yet implemented")
         }
+
+        override fun createIncompleteStateTaskEvent(
+            task: Task,
+            status: TaskStatus,
+            exception: Exception?
+        ): Event {
+            TODO("Not yet implemented")
+        }
+
         override fun supports(task: Task): Boolean {
             TODO("Not yet implemented")
         }
@@ -45,6 +64,15 @@ class TaskListenerRegistryTest {
         override fun getWorkerId(): String {
             TODO("Not yet implemented")
         }
+
+        override fun createIncompleteStateTaskEvent(
+            task: Task,
+            status: TaskStatus,
+            exception: Exception?
+        ): Event {
+            TODO("Not yet implemented")
+        }
+
         override fun supports(task: Task): Boolean {
             TODO("Not yet implemented")
         }
@@ -57,6 +85,15 @@ class TaskListenerRegistryTest {
         override fun getWorkerId(): String {
             TODO("Not yet implemented")
         }
+
+        override fun createIncompleteStateTaskEvent(
+            task: Task,
+            status: TaskStatus,
+            exception: Exception?
+        ): Event {
+            TODO("Not yet implemented")
+        }
+
         override fun supports(task: Task): Boolean {
             TODO("Not yet implemented")
         }

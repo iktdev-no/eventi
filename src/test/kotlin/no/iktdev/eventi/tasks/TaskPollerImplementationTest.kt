@@ -10,6 +10,7 @@ import no.iktdev.eventi.TestBase
 import no.iktdev.eventi.events.EventTypeRegistry
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Task
+import no.iktdev.eventi.models.store.TaskStatus
 import no.iktdev.eventi.stores.TaskStore
 import no.iktdev.eventi.testUtil.multiply
 import no.iktdev.eventi.testUtil.wipe
@@ -72,6 +73,14 @@ class TaskPollerImplementationTest : TestBase() {
 
         fun getJob() = currentJob
         override fun getWorkerId() = this.javaClass.simpleName
+        override fun createIncompleteStateTaskEvent(
+            task: Task,
+            status: TaskStatus,
+            exception: Exception?
+        ): Event {
+            return object : Event() {}
+        }
+
         override fun supports(task: Task) = task is EchoTask
 
         override suspend fun onTask(task: Task): Event {

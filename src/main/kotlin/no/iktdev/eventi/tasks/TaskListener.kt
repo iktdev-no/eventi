@@ -9,6 +9,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Task
+import no.iktdev.eventi.models.store.TaskStatus
 import org.jetbrains.annotations.VisibleForTesting
 import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
@@ -88,14 +89,16 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
                 this@TaskListener.reporter = null
             }
         }
-
         return true
     }
+
+    abstract fun createIncompleteStateTaskEvent(task: Task, status: TaskStatus, exception: Exception? = null): Event
 
     override fun onError(task: Task, exception: Exception) {
         reporter?.log(task.taskId, "Error processing task: ${exception.message}")
         exception.printStackTrace()
         reporter?.markFailed(task.referenceId, task.taskId)
+        reporter!!.publishEvent(createIncompleteStateTaskEvent(task, TaskStatus.Failed, exception))
     }
 
     override fun onComplete(task: Task, result: Event?) {
@@ -111,6 +114,7 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
         currentJob?.cancel()
         heartbeatRunner?.cancel()
         currentTask = null
+        reporter!!.publishEvent(createIncompleteStateTaskEvent(task, TaskStatus.Cancelled))
     }
 }
 
