@@ -37,8 +37,8 @@ class TaskListenerTest {
 
         override fun markClaimed(taskId: UUID, workerId: String) { claimed = true }
         override fun markCompleted(taskId: UUID) { consumed = true }
-        override fun markFailed(taskId: UUID) { consumed = true }
-        override fun markCancelled(taskId: UUID) {}
+        override fun markFailed(referenceId: UUID, taskId: UUID) { consumed = true }
+        override fun markCancelled(referenceId: UUID, taskId: UUID) {}
         override fun updateProgress(taskId: UUID, progress: Int) {}
         override fun publishEvent(event: Event) { events.add(event) }
         override fun updateLastSeen(taskId: UUID) {}

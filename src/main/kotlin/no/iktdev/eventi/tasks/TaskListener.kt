@@ -95,7 +95,7 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
     override fun onError(task: Task, exception: Exception) {
         reporter?.log(task.taskId, "Error processing task: ${exception.message}")
         exception.printStackTrace()
-        reporter?.markFailed(task.taskId)
+        reporter?.markFailed(task.referenceId, task.taskId)
     }
 
     override fun onComplete(task: Task, result: Event?) {
@@ -107,7 +107,7 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
     }
 
     override fun onCancelled(task: Task) {
-        reporter!!.markCancelled(task.taskId)
+        reporter!!.markCancelled(task.referenceId, task.taskId)
         currentJob?.cancel()
         heartbeatRunner?.cancel()
         currentTask = null
@@ -134,8 +134,8 @@ interface TaskReporter {
     fun markClaimed(taskId: UUID, workerId: String)
     fun updateLastSeen(taskId: UUID)
     fun markCompleted(taskId: UUID)
-    fun markFailed(taskId: UUID)
-    fun markCancelled(taskId: UUID)
+    fun markFailed(referenceId: UUID, taskId: UUID)
+    fun markCancelled(referenceId: UUID, taskId: UUID)
     fun updateProgress(taskId: UUID, progress: Int)
     fun log(taskId: UUID, message: String)
     fun publishEvent(event: Event)
