@@ -399,7 +399,7 @@ class TaskListenerTest {
         }
 
         val reporter = FakeReporter()
-        val task = FakeTask()
+        val task = FakeTask().newReferenceId()
 
         listener.accept(task, reporter)
 
@@ -442,7 +442,7 @@ class TaskListenerTest {
         }
 
         val reporter = FakeReporter()
-        val task = FakeTask()
+        val task = FakeTask().newReferenceId()
 
         listener.accept(task, reporter)
 
