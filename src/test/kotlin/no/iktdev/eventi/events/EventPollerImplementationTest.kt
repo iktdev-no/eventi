@@ -1,19 +1,23 @@
 package no.iktdev.eventi.events
 
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.awaitAll
 import no.iktdev.eventi.EventDispatcherTest.DerivedEvent
 import no.iktdev.eventi.EventDispatcherTest.OtherEvent
 import no.iktdev.eventi.EventDispatcherTest.TriggerEvent
 import no.iktdev.eventi.MyTime
 import no.iktdev.eventi.TestBase
 import no.iktdev.eventi.models.Event
+import no.iktdev.eventi.testUtil.TestSequenceDispatchQueue
 import no.iktdev.eventi.testUtil.wipe
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
@@ -33,9 +37,7 @@ Så skal polleren dispatch'e riktig, oppdatere lastSeenTime og unngå duplikater
 """)
 class EventPollerImplementationTest : TestBase() {
 
-    val dispatcher = EventDispatcher(eventStore)
-    val queue = SequenceDispatchQueue(maxConcurrency = 8)
-    val poller = object : EventPollerImplementation(eventStore, queue, dispatcher) {}
+    private val dispatcher = EventDispatcher(eventStore)
 
     @BeforeEach
     fun setup() {
@@ -59,6 +61,10 @@ class EventPollerImplementationTest : TestBase() {
     Så skal alle referenceId-er dispatch'es og lastSeenTime oppdateres
     """)
     fun pollOnceDispatchesAllNewReferenceIdsAndUpdatesLastSeenTime() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val queue = TestSequenceDispatchQueue(maxConcurrency = 8, dispatcher = testDispatcher)
+        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher) {}
+
         val dispatched = ConcurrentHashMap.newKeySet<UUID>()
         val completionMap = mutableMapOf<UUID, CompletableDeferred<Unit>>()
 
@@ -93,6 +99,9 @@ class EventPollerImplementationTest : TestBase() {
     Så skal backoff øke, og resettes når nye events ankommer
     """)
     fun pollOnceIncreasesBackoffWhenNoEventsAndResetsWhenEventsArrive() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val queue = TestSequenceDispatchQueue(maxConcurrency = 8, dispatcher = testDispatcher)
+
         val testPoller = object : EventPollerImplementation(eventStore, queue, dispatcher) {
             fun currentBackoff(): Duration = backoff
         }
@@ -121,6 +130,10 @@ class EventPollerImplementationTest : TestBase() {
     Så skal polleren gruppere og dispatch'e alle tre i én batch
     """)
     fun pollOnceGroupsAndDispatchesExactlyThreeEventsForOneReferenceId() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val queue = TestSequenceDispatchQueue(maxConcurrency = 8, dispatcher = testDispatcher)
+        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher) {}
+
         val refId = UUID.randomUUID()
         val received = mutableListOf<Event>()
         val done = CompletableDeferred<Unit>()
@@ -157,14 +170,17 @@ class EventPollerImplementationTest : TestBase() {
     Så skal polleren ignorere dem
     """)
     fun pollOnceIgnoresEventsBeforeLastSeenTime() = runTest {
-        val refId = UUID.randomUUID()
-        val ignored = TriggerEvent().usingReferenceId(refId)
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val queue = TestSequenceDispatchQueue(maxConcurrency = 8, dispatcher = testDispatcher)
 
         val testPoller = object : EventPollerImplementation(eventStore, queue, dispatcher) {
             init {
                 lastSeenTime = MyTime.utcNow().plusSeconds(1)
             }
         }
+
+        val refId = UUID.randomUUID()
+        val ignored = TriggerEvent().usingReferenceId(refId)
 
         eventStore.persist(ignored)
         testPoller.pollOnce()
@@ -180,7 +196,12 @@ class EventPollerImplementationTest : TestBase() {
     Så skal begge events prosesseres, men uten å produsere duplikate derived events
     """)
     fun pollerHandlesManuallyInjectedDuplicateEvent() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val queue = TestSequenceDispatchQueue(maxConcurrency = 8, dispatcher = testDispatcher)
+        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher) {}
+
         EventTypeRegistry.register(listOf(MarcoEvent::class.java, EchoEvent::class.java))
+
         val channel = Channel<Event>(Channel.UNLIMITED)
         val handled = mutableListOf<Event>()
 
@@ -193,16 +214,14 @@ class EventPollerImplementationTest : TestBase() {
             }
         }
 
-        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher) {}
-
         val original = EchoEvent("Hello")
         eventStore.persist(original)
 
         poller.pollOnce()
 
-        withContext(Dispatchers.Default.limitedParallelism(1)) {
-            withTimeout(Duration.ofMinutes(1).toMillis()) {
-                repeat(1) { channel.receive() }
+        withContext(testDispatcher) {
+            withTimeout(60_000) {
+                channel.receive()
             }
         }
 
@@ -211,9 +230,9 @@ class EventPollerImplementationTest : TestBase() {
 
         poller.pollOnce()
 
-        withContext(Dispatchers.Default.limitedParallelism(1)) {
-            withTimeout(Duration.ofMinutes(1).toMillis()) {
-                repeat(1) { channel.receive() }
+        withContext(testDispatcher) {
+            withTimeout(60_000) {
+                channel.receive()
             }
         }
 

@@ -466,12 +466,15 @@ class TaskListenerTest {
 
     @Test
     @DisplayName("""
-    Når listener prosesserer to tasks sekvensielt
-    Hvis cleanup fungerer riktig
-    Så skal ingen state lekke mellom tasks
-    """)
+Når listener prosesserer to tasks sekvensielt
+Hvis cleanup fungerer riktig
+Så skal ingen state lekke mellom tasks
+""")
     fun listenerHandlesSequentialTasksWithoutLeakingState() = runTest {
+        val started1 = CompletableDeferred<Unit>()
         val finish1 = CompletableDeferred<Unit>()
+
+        val started2 = CompletableDeferred<Unit>()
         val finish2 = CompletableDeferred<Unit>()
 
         val listener = object : TaskListener() {
@@ -481,20 +484,31 @@ class TaskListenerTest {
             override fun getWorkerId() = "worker"
             override fun supports(task: Task) = true
 
-            override suspend fun onTask(task: Task): Event? {
+            override suspend fun onTask(task: Task): Event {
                 callCount++
-                if (callCount == 1) finish1.await()
-                if (callCount == 2) finish2.await()
+
+                if (callCount == 1) {
+                    started1.complete(Unit)   // signal: coroutine har startet
+                    finish1.await()           // vent til testen sier "fortsett"
+                }
+
+                if (callCount == 2) {
+                    started2.complete(Unit)
+                    finish2.await()
+                }
+
                 return object : Event() {}
             }
         }
 
         val reporter = FakeReporter()
 
-        // Task 1
+        // --- Task 1 ---
         val task1 = FakeTask()
         listener.accept(task1, reporter)
-        finish1.complete(Unit)
+
+        started1.await()         // garanterer at coroutine kjører
+        finish1.complete(Unit)   // la coroutine fullføre
         listener.currentJob!!.join()
 
         // Verifiser cleanup
@@ -502,9 +516,11 @@ class TaskListenerTest {
         assertNull(listener.currentTask)
         assertNull(listener.heartbeatRunner)
 
-        // Task 2
+        // --- Task 2 ---
         val task2 = FakeTask()
         listener.accept(task2, reporter)
+
+        started2.await()
         finish2.complete(Unit)
         listener.currentJob!!.join()
 
@@ -516,4 +532,5 @@ class TaskListenerTest {
         // onTask ble kalt to ganger
         assertEquals(2, listener.callCount)
     }
+
 }
