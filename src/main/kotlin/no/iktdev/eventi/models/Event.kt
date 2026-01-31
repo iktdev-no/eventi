@@ -43,6 +43,6 @@ abstract class DeleteEvent(
     open val deletedEventId: UUID
 ) : Event()
 
-
+abstract class SignalEvent(): Event()
 
 

@@ -2,6 +2,7 @@ package no.iktdev.eventi.events
 
 import no.iktdev.eventi.models.DeleteEvent
 import no.iktdev.eventi.models.Event
+import no.iktdev.eventi.models.SignalEvent
 import no.iktdev.eventi.stores.EventStore
 import java.util.UUID
 
@@ -11,6 +12,7 @@ open class EventDispatcher(val eventStore: EventStore) {
         val derivedFromIds = events.mapNotNull { it.metadata.derivedFromId }.flatten().toSet()
         val deletedEventIds = events.filterIsInstance<DeleteEvent>().map { it.deletedEventId }
         val candidates = events
+            .filterNot { it is SignalEvent }
             .filter { it.eventId !in derivedFromIds }
             .filter { it.eventId !in deletedEventIds }
 

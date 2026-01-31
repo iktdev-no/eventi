@@ -8,6 +8,7 @@ import no.iktdev.eventi.events.EventListenerRegistry
 import no.iktdev.eventi.events.EventTypeRegistry
 import no.iktdev.eventi.models.DeleteEvent
 import no.iktdev.eventi.models.Event
+import no.iktdev.eventi.models.SignalEvent
 import no.iktdev.eventi.testUtil.wipe
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertEquals
@@ -19,12 +20,14 @@ import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import java.util.UUID
 
-@DisplayName("""
+@DisplayName(
+    """
 EventDispatcher
 Når hendelser dispatches til lyttere
 Hvis hendelsene inneholder avledede, slettede eller nye events
 Så skal dispatcheren håndtere filtrering, replays og historikk korrekt
-""")
+"""
+)
 class EventDispatcherTest : TestBase() {
 
     val dispatcher = EventDispatcher(eventStore)
@@ -51,11 +54,13 @@ class EventDispatcherTest : TestBase() {
     }
 
     @Test
-    @DisplayName("""
+    @DisplayName(
+        """
     Når en TriggerEvent dispatches
     Hvis en lytter produserer én DerivedEvent
     Så skal kun én ny event produseres og prosessen stoppe
-    """)
+    """
+    )
     fun shouldProduceOneEventAndStop() {
         ProducingListener()
 
@@ -72,11 +77,13 @@ class EventDispatcherTest : TestBase() {
     }
 
     @Test
-    @DisplayName("""
+    @DisplayName(
+        """
     Når en event allerede har avledet en DerivedEvent
     Hvis dispatcheren replays historikken
     Så skal ikke DerivedEvent produseres på nytt
-    """)
+    """
+    )
     fun shouldSkipAlreadyDerivedEvents() {
         ProducingListener()
 
@@ -91,11 +98,13 @@ class EventDispatcherTest : TestBase() {
     }
 
     @Test
-    @DisplayName("""
+    @DisplayName(
+        """
     Når flere events dispatches
     Hvis en lytter mottar en event
     Så skal hele historikken leveres i context
-    """)
+    """
+    )
     fun shouldPassFullContextToListener() {
         val listener = ContextCapturingListener()
 
@@ -107,11 +116,13 @@ class EventDispatcherTest : TestBase() {
     }
 
     @Test
-    @DisplayName("""
+    @DisplayName(
+        """
     Når en replay skjer
     Hvis en event allerede har produsert en DerivedEvent
     Så skal ikke DerivedEvent produseres på nytt
-    """)
+    """
+    )
     fun shouldBehaveDeterministicallyAcrossReplays() {
         ProducingListener()
 
@@ -125,11 +136,13 @@ class EventDispatcherTest : TestBase() {
     }
 
     @Test
-    @DisplayName("""
+    @DisplayName(
+        """
     Når en DeleteEvent peker på en tidligere event
     Hvis dispatcheren filtrerer kandidater
     Så skal slettede events ikke leveres som kandidater
-    """)
+    """
+    )
     fun shouldNotDeliverDeletedEventsAsCandidates() {
         val dispatcher = EventDispatcher(eventStore)
         val received = mutableListOf<Event>()
@@ -162,11 +175,13 @@ class EventDispatcherTest : TestBase() {
     }
 
     @Test
-    @DisplayName("""
+    @DisplayName(
+        """
     Når en DeleteEvent dispatches alene
     Hvis en lytter reagerer på DeleteEvent
     Så skal DeleteEvent leveres som kandidat
-    """)
+    """
+    )
     fun shouldDeliverDeleteEventToListenersThatReactToIt() {
         val received = mutableListOf<Event>()
         object : EventListener() {
@@ -183,11 +198,13 @@ class EventDispatcherTest : TestBase() {
     }
 
     @Test
-    @DisplayName("""
+    @DisplayName(
+        """
     Når en event har avledet en ny event
     Hvis dispatcheren replays historikken
     Så skal ikke original-eventen leveres som kandidat igjen
-    """)
+    """
+    )
     fun shouldNotRedeliverEventsThatHaveProducedDerivedEvents() {
         ProducingListener()
 
@@ -211,11 +228,13 @@ class EventDispatcherTest : TestBase() {
     }
 
     @Test
-    @DisplayName("""
+    @DisplayName(
+        """
     Når en DeleteEvent slettet en tidligere event
     Hvis dispatcheren bygger historikk
     Så skal slettede events ikke være med i history
-    """)
+    """
+    )
     fun historyShouldExcludeDeletedEvents() {
         val dispatcher = EventDispatcher(eventStore)
 
@@ -238,11 +257,13 @@ class EventDispatcherTest : TestBase() {
     }
 
     @Test
-    @DisplayName("""
+    @DisplayName(
+        """
     Når en DeleteEvent slettet en event
     Hvis andre events fortsatt er gyldige
     Så skal history kun inneholde de ikke-slettede events
-    """)
+    """
+    )
     fun historyShouldKeepNonDeletedEvents() {
         val dispatcher = EventDispatcher(eventStore)
 
@@ -267,11 +288,13 @@ class EventDispatcherTest : TestBase() {
     }
 
     @Test
-    @DisplayName("""
+    @DisplayName(
+        """
     Når en DeleteEvent er kandidat
     Hvis historikken kun inneholder slettede events
     Så skal history være tom
-    """)
+    """
+    )
     fun deleteEventShouldBeDeliveredButHistoryEmpty() {
         val dispatcher = EventDispatcher(eventStore)
 
@@ -294,6 +317,54 @@ class EventDispatcherTest : TestBase() {
         assertTrue(receivedEvent is DeleteEvent)
         assertTrue(receivedHistory.isEmpty())
     }
+
+    @Test
+    @DisplayName(
+    """
+    Når en SignalEvent dispatches
+    Hvis SignalEvent ikke skal være kandidat
+    Så skal den ikke leveres til lyttere, men fortsatt være i historikken
+    """
+    )
+    fun shouldNotDeliverSignalEventAsCandidate() {
+        // Arrange
+        class TestSignalEvent : SignalEvent()
+        EventTypeRegistry.register(listOf(TestSignalEvent::class.java,))
+
+        val received = mutableListOf<Event>()
+        var finalHistory: List<Event>? = null
+        object : EventListener() {
+            override fun onEvent(event: Event, history: List<Event>): Event? {
+                received += event
+                finalHistory = history
+                return null
+            }
+        }
+
+        val refId = UUID.randomUUID()
+        val trigger = TriggerEvent().usingReferenceId(refId)
+        val signal = TestSignalEvent().usingReferenceId(refId)
+
+        // Act
+        dispatcher.dispatch(trigger.referenceId, listOf(trigger, signal))
+
+        // Assert
+        // 1) TriggerEvent skal leveres
+        assertTrue(received.any { it is TriggerEvent }) {
+            "TriggerEvent skal leveres som kandidat"
+        }
+
+        // 2) SignalEvent skal IKKE leveres
+        assertFalse(received.any { it is TestSignalEvent }) {
+            "SignalEvent skal ikke leveres som kandidat"
+        }
+
+        assertNotNull(finalHistory)
+        assertTrue(finalHistory!!.any { it is TestSignalEvent }) {
+            "SignalEvent skal være i historikken selv om den ikke er kandidat"
+        }
+    }
+
 
     // --- Test helpers ---
 
