@@ -4,7 +4,7 @@ import java.util.UUID
 
 @Suppress("UNCHECKED_CAST")
 abstract class Event {
-    var referenceId: UUID = UUID.randomUUID()
+    lateinit var referenceId: UUID
         protected set
     var eventId: UUID = UUID.randomUUID()
         private set
