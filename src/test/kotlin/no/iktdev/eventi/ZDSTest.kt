@@ -39,7 +39,7 @@ class ZDSTest {
     fun scenario1() {
         EventTypeRegistry.register(EchoEvent::class.java)
 
-        val echo = EchoEvent("hello")
+        val echo = EchoEvent("hello").newReferenceId()
         val persisted = echo.toPersisted(id = 1L)
 
         val restored = persisted!!.toEvent()

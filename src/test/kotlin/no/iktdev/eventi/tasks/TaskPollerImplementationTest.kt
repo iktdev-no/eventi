@@ -114,7 +114,7 @@ class TaskPollerImplementationTest : TestBase() {
         val listener = EchoListener()
         val poller = object : TaskPollerImplementation(taskStore, reporterFactory) {}
 
-        val task = EchoTask("Hello").newReferenceId().derivedOf(object : Event() {})
+        val task = EchoTask("Hello").newReferenceId().derivedOf(object : Event() {}.apply { newReferenceId() })
         taskStore.persist(task)
 
         poller.pollOnce()

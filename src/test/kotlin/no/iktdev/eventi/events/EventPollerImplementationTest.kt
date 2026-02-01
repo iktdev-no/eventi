@@ -214,7 +214,7 @@ class EventPollerImplementationTest : TestBase() {
             }
         }
 
-        val original = EchoEvent("Hello")
+        val original = EchoEvent("Hello").newReferenceId()
         eventStore.persist(original)
 
         poller.pollOnce()

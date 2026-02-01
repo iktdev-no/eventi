@@ -64,7 +64,7 @@ class EventDispatcherTest : TestBase() {
     fun shouldProduceOneEventAndStop() {
         ProducingListener()
 
-        val trigger = TriggerEvent()
+        val trigger = TriggerEvent().newReferenceId()
         dispatcher.dispatch(trigger.referenceId, listOf(trigger))
 
         val produced = eventStore.all().firstOrNull()
@@ -87,7 +87,7 @@ class EventDispatcherTest : TestBase() {
     fun shouldSkipAlreadyDerivedEvents() {
         ProducingListener()
 
-        val trigger = TriggerEvent()
+        val trigger = TriggerEvent().newReferenceId()
         val derived = DerivedEvent().derivedOf(trigger).toPersisted(1L, MyTime.utcNow())
 
         eventStore.persist(derived!!.toEvent()!!) // simulate prior production
@@ -108,8 +108,8 @@ class EventDispatcherTest : TestBase() {
     fun shouldPassFullContextToListener() {
         val listener = ContextCapturingListener()
 
-        val e1 = TriggerEvent()
-        val e2 = OtherEvent()
+        val e1 = TriggerEvent().newReferenceId()
+        val e2 = OtherEvent().newReferenceId()
         dispatcher.dispatch(e1.referenceId, listOf(e1, e2))
 
         assertEquals(2, listener.context.size)
@@ -124,9 +124,11 @@ class EventDispatcherTest : TestBase() {
     """
     )
     fun shouldBehaveDeterministicallyAcrossReplays() {
+        val referenceId = UUID.randomUUID()
+
         ProducingListener()
 
-        val trigger = TriggerEvent()
+        val trigger = TriggerEvent().usingReferenceId(referenceId)
         dispatcher.dispatch(trigger.referenceId, listOf(trigger))
         val replayContext = listOf(trigger) + eventStore.all().mapNotNull { it.toEvent() }
 
@@ -144,6 +146,8 @@ class EventDispatcherTest : TestBase() {
     """
     )
     fun shouldNotDeliverDeletedEventsAsCandidates() {
+        val referenceId = UUID.randomUUID()
+
         val dispatcher = EventDispatcher(eventStore)
         val received = mutableListOf<Event>()
 
@@ -154,11 +158,10 @@ class EventDispatcherTest : TestBase() {
             }
         }
         // Original hendelse
-        val original = TriggerEvent()
+        val original = TriggerEvent().usingReferenceId(referenceId)
 
         // Slettehendelse som peker på original
-        val deleted = object : DeleteEvent(original.eventId) {
-        }
+        val deleted = object : DeleteEvent(original.eventId) {}.apply { newReferenceId() }
 
         // Dispatch med begge hendelser
         dispatcher.dispatch(original.referenceId, listOf(original, deleted))
@@ -184,6 +187,8 @@ class EventDispatcherTest : TestBase() {
     )
     fun shouldDeliverDeleteEventToListenersThatReactToIt() {
         val received = mutableListOf<Event>()
+        val referenceId = UUID.randomUUID()
+
         object : EventListener() {
             override fun onEvent(event: Event, history: List<Event>): Event? {
                 if (event is DeleteEvent) received += event
@@ -191,7 +196,7 @@ class EventDispatcherTest : TestBase() {
             }
         }
 
-        val deleted = object : DeleteEvent(UUID.randomUUID()) {}
+        val deleted = object : DeleteEvent(UUID.randomUUID()) {}.apply { usingReferenceId(referenceId) }
         dispatcher.dispatch(deleted.referenceId, listOf(deleted))
 
         assertTrue(received.contains(deleted))
@@ -208,7 +213,7 @@ class EventDispatcherTest : TestBase() {
     fun shouldNotRedeliverEventsThatHaveProducedDerivedEvents() {
         ProducingListener()
 
-        val trigger = TriggerEvent()
+        val trigger = TriggerEvent().newReferenceId()
         // Første dispatch: trigger produserer en DerivedEvent
         dispatcher.dispatch(trigger.referenceId, listOf(trigger))
 
@@ -238,8 +243,8 @@ class EventDispatcherTest : TestBase() {
     fun historyShouldExcludeDeletedEvents() {
         val dispatcher = EventDispatcher(eventStore)
 
-        val original = TriggerEvent()
-        val deleted = object : DeleteEvent(original.eventId) {}
+        val original = TriggerEvent().newReferenceId()
+        val deleted = object : DeleteEvent(original.eventId) {}.apply { usingReferenceId(original.referenceId) }
 
         var receivedHistory: List<Event> = emptyList()
 
@@ -266,9 +271,9 @@ class EventDispatcherTest : TestBase() {
     )
     fun historyShouldKeepNonDeletedEvents() {
         val dispatcher = EventDispatcher(eventStore)
-
-        val e1 = TriggerEvent()
-        val e2 = OtherEvent()
+        val referenceId = UUID.randomUUID()
+        val e1 = TriggerEvent().usingReferenceId(referenceId)
+        val e2 = OtherEvent().usingReferenceId(referenceId)
         val deleted = object : DeleteEvent(e1.eventId) {}
 
         var receivedHistory: List<Event> = emptyList()
@@ -298,8 +303,8 @@ class EventDispatcherTest : TestBase() {
     fun deleteEventShouldBeDeliveredButHistoryEmpty() {
         val dispatcher = EventDispatcher(eventStore)
 
-        val original = TriggerEvent()
-        val deleted = object : DeleteEvent(original.eventId) {}
+        val original = TriggerEvent().newReferenceId()
+        val deleted = object : DeleteEvent(original.eventId) {}.apply { newReferenceId() }
 
         var receivedEvent: Event? = null
         var receivedHistory: List<Event> = emptyList()
