@@ -8,23 +8,30 @@ import no.iktdev.eventi.stores.EventStore
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
-import kotlin.collections.iterator
 
 abstract class EventPollerImplementation(
     private val eventStore: EventStore,
     private val dispatchQueue: SequenceDispatchQueue,
     private val dispatcher: EventDispatcher
 ) {
-    // Erstatter ikke lastSeenTime, men supplerer den
-    protected val refWatermark = mutableMapOf<UUID, Instant>()
+    private val log = KotlinLogging.logger {}
 
-    // lastSeenTime brukes kun som scan hint
+    /**
+     * Per-reference watermark:
+     *  - first = last seen persistedAt
+     *  - second = last seen persistedId
+     */
+    protected val refWatermark = mutableMapOf<UUID, Pair<Instant, Long>>()
+
+    /**
+     * Global scan hint (timestamp only).
+     * Used to avoid scanning entire table every time.
+     */
     var lastSeenTime: Instant = Instant.EPOCH
 
     open var backoff = Duration.ofSeconds(2)
         protected set
     private val maxBackoff = Duration.ofMinutes(1)
-    private val log = KotlinLogging.logger {}
 
     open suspend fun start() {
         log.info { "EventPoller starting with initial backoff=$backoff" }
@@ -32,7 +39,7 @@ abstract class EventPollerImplementation(
             try {
                 pollOnce()
             } catch (e: Exception) {
-                e.printStackTrace()
+                log.error(e) { "Error in poller loop" }
                 delay(backoff.toMillis())
                 backoff = backoff.multipliedBy(2).coerceAtMost(maxBackoff)
             }
@@ -43,11 +50,11 @@ abstract class EventPollerImplementation(
         val pollStartedAt = MyTime.utcNow()
         log.debug { "🔍 Polling for new events" }
 
-        // Global scan hint: kombiner refWatermark og lastSeenTime
-        val watermarkMin = refWatermark.values.minOrNull()
-        val scanFrom = when (watermarkMin) {
+        // Determine global scan start
+        val minRefTs = refWatermark.values.minOfOrNull { it.first }
+        val scanFrom = when (minRefTs) {
             null -> lastSeenTime
-            else -> maxOf(lastSeenTime, watermarkMin)
+            else -> maxOf(lastSeenTime, minRefTs)
         }
 
         val newPersisted = eventStore.getPersistedEventsAfter(scanFrom)
@@ -59,76 +66,73 @@ abstract class EventPollerImplementation(
             return
         }
 
-        // Vi har sett nye events globalt – reset backoff
+        // Reset backoff
         backoff = Duration.ofSeconds(2)
         log.debug { "📬 Found ${newPersisted.size} new events after $scanFrom" }
 
         val grouped = newPersisted.groupBy { it.referenceId }
         var anyProcessed = false
 
-        // Track høyeste persistedAt vi har sett i denne runden
+        // Track highest persistedAt seen globally this round
         val maxPersistedThisRound = newPersisted.maxOf { it.persistedAt }
 
         for ((ref, eventsForRef) in grouped) {
-            val refSeen = refWatermark[ref] ?: Instant.EPOCH
+            val (refSeenAt, refSeenId) = refWatermark[ref] ?: (Instant.EPOCH to 0L)
 
-            // Finn kun nye events for denne ref’en
-            val newForRef = eventsForRef.filter { it.persistedAt > refSeen }
+            // Filter new events using (timestamp, id) ordering
+            val newForRef = eventsForRef.filter { ev ->
+                ev.persistedAt > refSeenAt ||
+                        (ev.persistedAt == refSeenAt && ev.id > refSeenId)
+            }
+
             if (newForRef.isEmpty()) {
-                log.debug { "🧊 No new events for $ref since $refSeen" }
+                log.debug { "🧊 No new events for $ref since ($refSeenAt, id=$refSeenId)" }
                 continue
             }
 
-            // Hvis ref er busy → ikke oppdater watermark, ikke dispatch
+            // If ref is busy, skip dispatch
             if (dispatchQueue.isProcessing(ref)) {
                 log.debug { "⏳ $ref is busy — deferring ${newForRef.size} events" }
                 continue
             }
 
-            // Hent full sekvens for ref (Eventi-invariant)
+            // Fetch full sequence for dispatch
             val fullLog = eventStore.getPersistedEventsFor(ref)
             val events = fullLog.mapNotNull { it.toEvent() }
 
             log.debug { "🚀 Dispatching ${events.size} events for $ref" }
             dispatchQueue.dispatch(ref, events, dispatcher)
 
-            // Oppdater watermark for denne ref’en
-            val maxPersistedAtForRef = newForRef.maxOf { it.persistedAt }
-            val newWatermark = minOf(pollStartedAt, maxPersistedAtForRef).plusNanos(1)
+            // Update watermark for this reference
+            val maxEvent = newForRef.maxWith(
+                compareBy({ it.persistedAt }, { it.id })
+            )
 
-            refWatermark[ref] = newWatermark
+            val newWatermarkAt = minOf(pollStartedAt, maxEvent.persistedAt)
+            val newWatermarkId = maxEvent.id
+
+            refWatermark[ref] = newWatermarkAt to newWatermarkId
             anyProcessed = true
 
-            log.debug { "⏩ Updated watermark for $ref → $newWatermark" }
+            log.debug { "⏩ Updated watermark for $ref → ($newWatermarkAt, id=$newWatermarkId)" }
         }
 
-        // Oppdater global scan hint uansett – vi har sett nye events
-        // Dette hindrer livelock når alle events er <= watermark for sine refs
+        // Update global scan hint
         val newLastSeen = maxOf(
             lastSeenTime,
             maxPersistedThisRound.plusNanos(1)
         )
 
         if (anyProcessed) {
-            // Behold intensjonen din: globalt hint basert på laveste watermark,
-            // men aldri gå bakover i tid ift lastSeenTime
-            val minRefWatermark = refWatermark.values.minOrNull()
-            lastSeenTime = when (minRefWatermark) {
+            val minRef = refWatermark.values.minOfOrNull { it.first }
+            lastSeenTime = when (minRef) {
                 null -> newLastSeen
-                else -> maxOf(newLastSeen, minRefWatermark)
+                else -> maxOf(newLastSeen, minRef)
             }
             log.debug { "📉 Global scanFrom updated → $lastSeenTime (anyProcessed=true)" }
         } else {
-            // Ingen refs prosessert, men vi vet at alle events vi så er <= watermark
-            // → trygt å flytte lastSeenTime forbi dem
             lastSeenTime = newLastSeen
             log.debug { "🔁 No refs processed — advancing global scanFrom to $lastSeenTime" }
         }
     }
-
-
-
-
-
-
 }

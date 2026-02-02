@@ -68,9 +68,7 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
         currentJob = getDispatcherForTask(task).launch {
             try {
                 val result = onTask(task)
-                reporter.markCompleted(task.taskId)
                 onComplete(task, result)
-
             } catch (e: CancellationException) {
                 // Dette er en ekte kansellering
                 onCancelled(task)

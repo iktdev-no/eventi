@@ -17,8 +17,6 @@ class TestablePoller(
     val scope: TestScope
 ) : EventPollerImplementation(eventStore, dispatchQueue, dispatcher), WatermarkDebugView {
 
-
-
     suspend fun startFor(iterations: Int) {
         repeat(iterations) {
             try {
@@ -32,19 +30,17 @@ class TestablePoller(
         }
     }
 
-    override fun watermarkFor(ref: UUID): Instant? {
-        return refWatermark[ref]?.let {
-            return it
-        }
+    override fun watermarkFor(ref: UUID): Pair<Instant, Long>? {
+        return refWatermark[ref]
     }
 
-    override fun setWatermarkFor(ref: UUID, time: Instant) {
-        refWatermark[ref] = time
+    override fun setWatermarkFor(ref: UUID, time: Instant, id: Long) {
+        refWatermark[ref] = time to id
     }
-
-
 }
+
 interface WatermarkDebugView {
-    fun watermarkFor(ref: UUID): Instant?
-    fun setWatermarkFor(ref: UUID, time: Instant)
+    fun watermarkFor(ref: UUID): Pair<Instant, Long>?
+    fun setWatermarkFor(ref: UUID, time: Instant, id: Long)
 }
+

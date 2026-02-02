@@ -60,6 +60,42 @@ class PollerStartLoopTest : TestBase() {
         store.persistAt(e, time)
     }
 
+
+    @Test
+    @DisplayName("""
+    Når to events har identisk persistedAt
+    Hvis polleren kjører
+    Så skal begge events prosesseres og ingen mistes
+    """)
+    fun `poller handles same-timestamp events without losing any`() = runTest {
+        val ref = UUID.randomUUID()
+        val ts = Instant.parse("2025-01-01T12:00:00Z")
+
+        // Two events with same timestamp but different IDs
+        val e1 = TestEvent().withReference(ref).setMetadata(Metadata())
+        val e2 = TestEvent().withReference(ref).setMetadata(Metadata())
+
+        store.persistAt(e1, ts) // id=1
+        store.persistAt(e2, ts) // id=2
+
+        poller.startFor(iterations = 1)
+
+        // Verify dispatch happened
+        assertThat(dispatcher.dispatched).hasSize(1)
+
+        val (_, events) = dispatcher.dispatched.single()
+
+        // Both events must be present
+        assertThat(events.map { it.eventId })
+            .hasSize(2)
+            .doesNotHaveDuplicates()
+
+        // Watermark must reflect highest ID
+        val wm = poller.watermarkFor(ref)
+        assertThat(wm!!.first).isEqualTo(ts)
+        assertThat(wm.second).isEqualTo(2)
+    }
+
     @Test
     @DisplayName("""
     Når polleren kjører flere iterasjoner uten events
@@ -271,11 +307,15 @@ class PollerStartLoopTest : TestBase() {
 
         poller.startFor(iterations = 1)
 
+
+
         // A skal IKKE ha flyttet watermark
         assertThat(poller.watermarkFor(refA)).isEqualTo(wmA1)
 
-        // B skal ha flyttet watermark
-        assertThat(poller.watermarkFor(refB)).isGreaterThan(wmB1)
+        // B skal ha flyttet watermark (på timestamp-nivå)
+        val wmB2 = poller.watermarkFor(refB)
+        assertThat(wmB2!!.first).isGreaterThan(wmB1!!.first)
+
     }
 
     @DisplayName("🍌 Bananastesten™ — stress-test av watermark, busy refs og dispatch-semantikk")
@@ -433,7 +473,7 @@ class PollerStartLoopTest : TestBase() {
 
         // Sett watermark høyt (polleren setter watermark selv i ekte drift,
         // men i denne testen må vi simulere det)
-        poller.setWatermarkFor(ref, t(100))
+        poller.setWatermarkFor(ref, t(100), id = 999)
 
         // Sett lastSeenTime bak eventen
         poller.lastSeenTime = t(0)
