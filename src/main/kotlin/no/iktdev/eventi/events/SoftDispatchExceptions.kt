@@ -29,4 +29,13 @@ sealed class SoftDispatchException(
         message = "Listener forcibly ejected: $reason",
         eventType = currentEvent
     )
+
+    class UnqualifiedEntryEventException(
+        currentEvent: Class<out Event>
+    ) : SoftDispatchException(
+        message = "Listener did not receive qualified entry event: ${currentEvent.simpleName}",
+        eventType = currentEvent
+    )
+
+
 }

@@ -31,8 +31,12 @@ open class EventDispatcher(val eventStore: EventStore) {
                     if (result != null) {
                         eventStore.persist(result)
                     }
+                } catch (e: SoftDispatchException.UnqualifiedEntryEventException) {
+                    log.debug("Soft-dispatch skip (unqualified entry): ${e.message}")
+                } catch (e: SoftDispatchException.SkipListenerException) {
+                    log.debug("Soft-dispatch skip: ${e.message}")
                 } catch (e: SoftDispatchException) {
-                    log.warn( "Soft-dispatch in ${listener::class.simpleName} " + "for event ${e.eventType?.simpleName ?: "Unknown"}: ${e.message}" )
+                    log.warn("Soft-dispatch in ${listener::class.simpleName} for event ${e.eventType?.simpleName}: ${e.message}")
                 }
             }
         }
