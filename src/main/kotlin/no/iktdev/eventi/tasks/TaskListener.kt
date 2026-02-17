@@ -63,7 +63,13 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
         if (isBusy || !supports(task)) return false
         this.reporter = reporter
         currentTask = task
-        reporter.markClaimed(task.taskId, getWorkerId())
+        val claimResult = reporter.markClaimed(task.taskId, getWorkerId())
+        if (claimResult is Result.Failure) {
+            reporter.log(task.taskId, "Failed to claim task: ${claimResult.reason}")
+            this.reporter = null
+            currentTask = null
+            return false
+        }
 
         currentJob = getDispatcherForTask(task).launch {
             try {
@@ -80,7 +86,6 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
 
             } finally {
                 heartbeatRunner?.cancel()
-                currentJob?.cancel()
                 heartbeatRunner = null
                 currentJob = null
                 currentTask = null
@@ -133,12 +138,20 @@ interface TaskListenerImplementation {
 }
 
 interface TaskReporter {
-    fun markClaimed(taskId: UUID, workerId: String)
-    fun updateLastSeen(taskId: UUID)
-    fun markCompleted(taskId: UUID)
-    fun markFailed(referenceId: UUID, taskId: UUID)
-    fun markCancelled(referenceId: UUID, taskId: UUID)
-    fun updateProgress(taskId: UUID, progress: Int)
+    fun markClaimed(taskId: UUID, workerId: String): Result
+    fun updateLastSeen(taskId: UUID): Result
+    fun markCompleted(taskId: UUID): Result
+    fun markFailed(referenceId: UUID, taskId: UUID): Result
+    fun markCancelled(referenceId: UUID, taskId: UUID): Result
+    fun updateProgress(taskId: UUID, progress: Int): Result
     fun log(taskId: UUID, message: String)
-    fun publishEvent(event: Event)
+    fun publishEvent(event: Event): Result
+}
+
+sealed class Result {
+    data object Success: Result()
+    data class Failure(
+        val reason: String,
+        val exception: Exception? = null,
+        val suppressStackTrace: Boolean = false): Result()
 }

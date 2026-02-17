@@ -43,15 +43,16 @@ class TaskPollerImplementationTest : TestBase() {
 
     val reporterFactory = { _: Task ->
         object : TaskReporter {
-            override fun markClaimed(taskId: UUID, workerId: String) {}
-            override fun updateLastSeen(taskId: UUID) {}
-            override fun markCompleted(taskId: UUID) {}
-            override fun markFailed(referenceId: UUID,taskId: UUID) {}
-            override fun markCancelled(referenceId: UUID,taskId: UUID) {}
-            override fun updateProgress(taskId: UUID, progress: Int) {}
+            override fun markClaimed(taskId: UUID, workerId: String): Result { return Result.Success }
+            override fun updateLastSeen(taskId: UUID): Result { return Result.Success }
+            override fun markCompleted(taskId: UUID): Result { return Result.Success }
+            override fun markFailed(referenceId: UUID,taskId: UUID): Result { return Result.Success }
+            override fun markCancelled(referenceId: UUID,taskId: UUID): Result { return Result.Success }
+            override fun updateProgress(taskId: UUID, progress: Int): Result { return Result.Success }
             override fun log(taskId: UUID, message: String) {}
-            override fun publishEvent(event: Event) {
+            override fun publishEvent(event: Event): Result {
                 eventDeferred.complete(event)
+                return Result.Success
             }
         }
     }

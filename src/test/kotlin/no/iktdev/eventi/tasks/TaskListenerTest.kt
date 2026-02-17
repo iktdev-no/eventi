@@ -33,13 +33,13 @@ class TaskListenerTest {
         val logs = mutableListOf<String>()
         val events = mutableListOf<Event>()
 
-        override fun markClaimed(taskId: UUID, workerId: String) { claimed = true }
-        override fun markCompleted(taskId: UUID) { completed = true }
-        override fun markFailed(referenceId: UUID, taskId: UUID) { failed = true }
-        override fun markCancelled(referenceId: UUID, taskId: UUID) { cancelled = true }
-        override fun updateProgress(taskId: UUID, progress: Int) {}
-        override fun publishEvent(event: Event) { events.add(event) }
-        override fun updateLastSeen(taskId: UUID) {}
+        override fun markClaimed(taskId: UUID, workerId: String): Result { claimed = true; return Result.Success }
+        override fun markCompleted(taskId: UUID): Result { completed = true; return Result.Success }
+        override fun markFailed(referenceId: UUID, taskId: UUID): Result { failed = true; return Result.Success }
+        override fun markCancelled(referenceId: UUID, taskId: UUID): Result { cancelled = true; return Result.Success }
+        override fun updateProgress(taskId: UUID, progress: Int): Result { return Result.Success }
+        override fun publishEvent(event: Event): Result { events.add(event); return Result.Success }
+        override fun updateLastSeen(taskId: UUID): Result { return Result.Success }
         override fun log(taskId: UUID, message: String) { logs.add(message) }
     }
 

@@ -41,6 +41,7 @@ abstract class TaskPollerImplementation(
             backoff = backoff.multipliedBy(2).coerceAtMost(maxBackoff)
             return
         }
+
         log.debug { "Found ${newPersistedTasks.size} persisted tasks" }
 
         val tasks = newPersistedTasks.mapNotNull { it.toTask() }
@@ -48,13 +49,6 @@ abstract class TaskPollerImplementation(
 
         for (task in tasks) {
             val listener = TaskListenerRegistry.getListeners().firstOrNull { it.supports(task) && !it.isBusy } ?: continue
-            val claimed = taskStore.claim(task.taskId, listener.getWorkerId())
-            if (!claimed) {
-                log.debug { "Task ${task.taskId} is already claimed by another worker" }
-                continue
-            }
-
-            log.debug { "Task ${task.taskId} claimed by ${listener.getWorkerId()}" }
 
             val reporter = reporterFactory(task)
             val accepted = try {
@@ -64,6 +58,11 @@ abstract class TaskPollerImplementation(
                 e.printStackTrace()
                 false
             }
+
+            if (accepted) {
+                log.debug { "Task ${task.taskId} accepted by ${listener.getWorkerId()}" }
+            }
+
             acceptedAny = acceptedAny || accepted
         }
 
@@ -76,4 +75,5 @@ abstract class TaskPollerImplementation(
             backoff = Duration.ofSeconds(2)
         }
     }
+
 }
