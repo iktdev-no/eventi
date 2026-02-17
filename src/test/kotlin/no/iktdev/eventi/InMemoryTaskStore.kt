@@ -34,14 +34,16 @@ open class InMemoryTaskStore : TaskStore {
         return true
     }
 
-    override fun heartbeat(taskId: UUID) {
-        val task = findByTaskId(taskId) ?: return
+    override fun heartbeat(taskId: UUID): Boolean {
+        val task = findByTaskId(taskId) ?: return false
         update(task.copy(lastCheckIn = MyTime.utcNow()))
+        return true
     }
 
-    override fun markConsumed(taskId: UUID, status: TaskStatus) {
-        val task = findByTaskId(taskId) ?: return
+    override fun markConsumed(taskId: UUID, status: TaskStatus): Boolean {
+        val task = findByTaskId(taskId) ?: return false
         update(task.copy(consumed = true, status = status))
+        return true
     }
 
     override fun releaseExpiredTasks(timeout: Duration) {
