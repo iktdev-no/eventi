@@ -14,9 +14,10 @@ open class InMemoryTaskStore : TaskStore {
     private val tasks = mutableListOf<PersistedTask>()
     private var nextId = 1L
 
-    override fun persist(task: Task) {
+    override fun persist(task: Task): Boolean {
         val persistedTask = task.toPersisted(nextId++)
         tasks += persistedTask!!
+        return true
     }
 
     override fun findByTaskId(taskId: UUID) = tasks.find { it.taskId == taskId }

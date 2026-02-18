@@ -7,7 +7,7 @@ import java.time.Duration
 import java.util.UUID
 
 interface TaskStore {
-    fun persist(task: Task)
+    fun persist(task: Task): Boolean
 
     fun findByTaskId(taskId: UUID): PersistedTask?
     fun findByReferenceId(referenceId: UUID): List<PersistedTask>
