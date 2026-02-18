@@ -1,14 +1,12 @@
 package no.iktdev.eventi.tasks
 
 import no.iktdev.eventi.ListenerOrder
-import no.iktdev.eventi.events.EventListener
-import no.iktdev.eventi.events.EventListenerRegistry
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Task
 import no.iktdev.eventi.models.store.TaskStatus
+import no.iktdev.eventi.registry.TaskListenerRegistry
 import no.iktdev.eventi.testUtil.wipe
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 

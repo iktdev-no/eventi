@@ -7,6 +7,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.yield
 import no.iktdev.eventi.models.Event
+import no.iktdev.eventi.models.Progress
 import no.iktdev.eventi.models.Task
 import no.iktdev.eventi.models.store.TaskStatus
 import org.junit.jupiter.api.Assertions.*
@@ -37,7 +38,7 @@ class TaskListenerTest {
         override fun markCompleted(taskId: UUID): Result { completed = true; return Result.Success }
         override fun markFailed(referenceId: UUID, taskId: UUID): Result { failed = true; return Result.Success }
         override fun markCancelled(referenceId: UUID, taskId: UUID): Result { cancelled = true; return Result.Success }
-        override fun updateProgress(taskId: UUID, progress: Int): Result { return Result.Success }
+        override fun updateProgress(referenceId: UUID, taskId: UUID, payload: Progress): Result { return Result.Success }
         override fun publishEvent(event: Event): Result { events.add(event); return Result.Success }
         override fun updateLastSeen(taskId: UUID): Result { return Result.Success }
         override fun log(taskId: UUID, message: String) { logs.add(message) }

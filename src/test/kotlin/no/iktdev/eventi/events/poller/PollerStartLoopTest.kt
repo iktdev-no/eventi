@@ -6,7 +6,7 @@ import no.iktdev.eventi.InMemoryEventStore
 import no.iktdev.eventi.MyTime
 import no.iktdev.eventi.TestBase
 import no.iktdev.eventi.events.EventDispatcher
-import no.iktdev.eventi.events.EventTypeRegistry
+import no.iktdev.eventi.registry.EventTypeRegistry
 import no.iktdev.eventi.events.FakeDispatcher
 import no.iktdev.eventi.events.RunSimulationTestTest
 import no.iktdev.eventi.events.SequenceDispatchQueue

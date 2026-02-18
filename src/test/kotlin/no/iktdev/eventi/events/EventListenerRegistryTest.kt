@@ -2,9 +2,9 @@ package no.iktdev.eventi.events
 
 import no.iktdev.eventi.ListenerOrder
 import no.iktdev.eventi.models.Event
+import no.iktdev.eventi.registry.EventListenerRegistry
 import no.iktdev.eventi.testUtil.wipe
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test

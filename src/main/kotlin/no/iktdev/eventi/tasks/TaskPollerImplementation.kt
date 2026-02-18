@@ -2,8 +2,9 @@ package no.iktdev.eventi.tasks
 
 import kotlinx.coroutines.delay
 import mu.KotlinLogging
-import no.iktdev.eventi.ZDS.toTask
+import no.iktdev.eventi.serialization.ZDS.toTask
 import no.iktdev.eventi.models.Task
+import no.iktdev.eventi.registry.TaskListenerRegistry
 import no.iktdev.eventi.stores.TaskStore
 import java.time.Duration
 

@@ -12,6 +12,12 @@ abstract class TypeRegistryImplementation<T> {
         }
     }
 
+    open fun register(vararg clazzes: Class<out T>) {
+        clazzes.forEach { clazz ->
+            types[clazz.simpleName] = clazz
+        }
+    }
+
     open fun resolve(name: String): Class<out T>? = types[name]
 
     open fun all(): Map<String, Class<out T>> = types.toMap()

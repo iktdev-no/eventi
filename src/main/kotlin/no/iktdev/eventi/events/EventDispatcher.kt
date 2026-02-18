@@ -4,6 +4,7 @@ import mu.KotlinLogging
 import no.iktdev.eventi.models.DeleteEvent
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.SignalEvent
+import no.iktdev.eventi.registry.EventListenerRegistry
 import no.iktdev.eventi.stores.EventStore
 import java.util.UUID
 

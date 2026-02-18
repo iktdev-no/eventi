@@ -3,7 +3,7 @@ package no.iktdev.eventi.events
 import kotlinx.coroutines.delay
 import mu.KotlinLogging
 import no.iktdev.eventi.MyTime
-import no.iktdev.eventi.ZDS.toEvent
+import no.iktdev.eventi.serialization.ZDS.toEvent
 import no.iktdev.eventi.stores.EventStore
 import java.time.Duration
 import java.time.Instant

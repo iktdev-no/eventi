@@ -7,10 +7,13 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import no.iktdev.eventi.InMemoryTaskStore
 import no.iktdev.eventi.TestBase
-import no.iktdev.eventi.events.EventTypeRegistry
+import no.iktdev.eventi.registry.EventTypeRegistry
 import no.iktdev.eventi.models.Event
+import no.iktdev.eventi.models.Progress
 import no.iktdev.eventi.models.Task
 import no.iktdev.eventi.models.store.TaskStatus
+import no.iktdev.eventi.registry.TaskListenerRegistry
+import no.iktdev.eventi.registry.TaskTypeRegistry
 import no.iktdev.eventi.stores.TaskStore
 import no.iktdev.eventi.testUtil.multiply
 import no.iktdev.eventi.testUtil.wipe
@@ -48,7 +51,7 @@ class TaskPollerImplementationTest : TestBase() {
             override fun markCompleted(taskId: UUID): Result { return Result.Success }
             override fun markFailed(referenceId: UUID,taskId: UUID): Result { return Result.Success }
             override fun markCancelled(referenceId: UUID,taskId: UUID): Result { return Result.Success }
-            override fun updateProgress(taskId: UUID, progress: Int): Result { return Result.Success }
+            override fun updateProgress(referenceId: UUID, taskId: UUID, payload: Progress): Result { return Result.Success }
             override fun log(taskId: UUID, message: String) {}
             override fun publishEvent(event: Event): Result {
                 eventDeferred.complete(event)

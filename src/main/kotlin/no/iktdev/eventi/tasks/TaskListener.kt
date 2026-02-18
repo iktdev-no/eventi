@@ -8,8 +8,10 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import no.iktdev.eventi.models.Event
+import no.iktdev.eventi.models.Progress
 import no.iktdev.eventi.models.Task
 import no.iktdev.eventi.models.store.TaskStatus
+import no.iktdev.eventi.registry.TaskListenerRegistry
 import org.jetbrains.annotations.VisibleForTesting
 import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
@@ -143,7 +145,7 @@ interface TaskReporter {
     fun markCompleted(taskId: UUID): Result
     fun markFailed(referenceId: UUID, taskId: UUID): Result
     fun markCancelled(referenceId: UUID, taskId: UUID): Result
-    fun updateProgress(taskId: UUID, progress: Int): Result
+    fun updateProgress(referenceId: UUID, taskId: UUID, payload: Progress): Result
     fun log(taskId: UUID, message: String)
     fun publishEvent(event: Event): Result
 }

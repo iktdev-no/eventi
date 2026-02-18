@@ -1,7 +1,7 @@
 package no.iktdev.eventi.testUtil
 
 import no.iktdev.eventi.tasks.TaskListener
-import no.iktdev.eventi.tasks.TaskListenerRegistry
+import no.iktdev.eventi.registry.TaskListenerRegistry
 import org.assertj.core.api.Assertions.assertThat
 import java.lang.reflect.Field
 

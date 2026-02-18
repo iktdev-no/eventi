@@ -1,6 +1,6 @@
 package no.iktdev.eventi.testUtil
 
-import no.iktdev.eventi.events.EventTypeRegistry
+import no.iktdev.eventi.registry.EventTypeRegistry
 import no.iktdev.eventi.models.Event
 import org.junit.jupiter.api.Assertions.assertNull
 import java.lang.reflect.Field

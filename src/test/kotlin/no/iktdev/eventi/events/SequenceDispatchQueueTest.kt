@@ -7,6 +7,8 @@ import no.iktdev.eventi.EventDispatcherTest.OtherEvent
 import no.iktdev.eventi.EventDispatcherTest.TriggerEvent
 import no.iktdev.eventi.TestBase
 import no.iktdev.eventi.models.Event
+import no.iktdev.eventi.registry.EventListenerRegistry
+import no.iktdev.eventi.registry.EventTypeRegistry
 import no.iktdev.eventi.testUtil.wipe
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.BeforeEach

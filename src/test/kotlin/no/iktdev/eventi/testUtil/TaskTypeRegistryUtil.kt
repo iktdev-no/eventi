@@ -1,7 +1,7 @@
 package no.iktdev.eventi.testUtil
 
 import no.iktdev.eventi.models.Task
-import no.iktdev.eventi.tasks.TaskTypeRegistry
+import no.iktdev.eventi.registry.TaskTypeRegistry
 import org.junit.jupiter.api.Assertions.assertNull
 import java.lang.reflect.Field
 

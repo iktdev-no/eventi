@@ -1,7 +1,7 @@
 package no.iktdev.eventi
 
 import no.iktdev.eventi.events.EchoEvent
-import no.iktdev.eventi.events.EventTypeRegistry
+import no.iktdev.eventi.registry.EventTypeRegistry
 import no.iktdev.eventi.events.StartEvent
 
 open class TestBase {

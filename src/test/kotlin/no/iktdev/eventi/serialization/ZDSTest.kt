@@ -1,14 +1,14 @@
-package no.iktdev.eventi
+package no.iktdev.eventi.serialization
 
-import no.iktdev.eventi.ZDS.toEvent
-import no.iktdev.eventi.ZDS.toPersisted
-import no.iktdev.eventi.ZDS.toTask
 import no.iktdev.eventi.events.EchoEvent
-import no.iktdev.eventi.events.EventTypeRegistry
 import no.iktdev.eventi.models.Task
-import no.iktdev.eventi.tasks.TaskTypeRegistry
+import no.iktdev.eventi.registry.EventTypeRegistry
+import no.iktdev.eventi.registry.TaskTypeRegistry
+import no.iktdev.eventi.serialization.ZDS.toEvent
+import no.iktdev.eventi.serialization.ZDS.toPersisted
+import no.iktdev.eventi.serialization.ZDS.toTask
 import no.iktdev.eventi.testUtil.wipe
-import org.junit.jupiter.api.Assertions.assertNull
+import org.junit.jupiter.api.Assertions
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
@@ -27,7 +27,7 @@ class ZDSTest {
         TaskTypeRegistry.wipe()
 
         // Verifiser at det er tomt
-        assertNull(EventTypeRegistry.resolve("SomeEvent"))
+        Assertions.assertNull(EventTypeRegistry.resolve("SomeEvent"))
     }
 
     @Test

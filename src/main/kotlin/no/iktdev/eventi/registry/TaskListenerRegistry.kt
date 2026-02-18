@@ -1,7 +1,8 @@
-package no.iktdev.eventi.tasks
+package no.iktdev.eventi.registry
 
 import no.iktdev.eventi.ListenerOrder
 import no.iktdev.eventi.ListenerRegistryImplementation
+import no.iktdev.eventi.tasks.TaskListener
 
 object TaskListenerRegistry: ListenerRegistryImplementation<TaskListener>() {
     override fun getListeners(): List<TaskListener> {

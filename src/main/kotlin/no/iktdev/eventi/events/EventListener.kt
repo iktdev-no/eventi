@@ -1,6 +1,7 @@
 package no.iktdev.eventi.events
 
 import no.iktdev.eventi.models.Event
+import no.iktdev.eventi.registry.EventListenerRegistry
 
 abstract class EventListener: EventListenerImplementation {
     init {

@@ -1,14 +1,15 @@
 package no.iktdev.eventi
 
-import no.iktdev.eventi.ZDS.toEvent
-import no.iktdev.eventi.ZDS.toPersisted
+import no.iktdev.eventi.serialization.ZDS.toEvent
+import no.iktdev.eventi.serialization.ZDS.toPersisted
 import no.iktdev.eventi.events.EventDispatcher
 import no.iktdev.eventi.events.EventListener
-import no.iktdev.eventi.events.EventListenerRegistry
-import no.iktdev.eventi.events.EventTypeRegistry
+import no.iktdev.eventi.registry.EventTypeRegistry
 import no.iktdev.eventi.models.DeleteEvent
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.SignalEvent
+import no.iktdev.eventi.registry.EventListenerRegistry
+import no.iktdev.eventi.registry.TaskTypeRegistry
 import no.iktdev.eventi.testUtil.wipe
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertEquals

@@ -1,6 +1,6 @@
 package no.iktdev.eventi
 
-import no.iktdev.eventi.ZDS.toPersisted
+import no.iktdev.eventi.serialization.ZDS.toPersisted
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.store.PersistedEvent
 import no.iktdev.eventi.stores.EventStore

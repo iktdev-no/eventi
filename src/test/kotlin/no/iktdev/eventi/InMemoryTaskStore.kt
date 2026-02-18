@@ -1,6 +1,6 @@
 package no.iktdev.eventi
 
-import no.iktdev.eventi.ZDS.toPersisted
+import no.iktdev.eventi.serialization.ZDS.toPersisted
 import no.iktdev.eventi.models.Task
 import no.iktdev.eventi.models.store.PersistedTask
 import no.iktdev.eventi.models.store.TaskStatus

@@ -1,9 +1,9 @@
 package no.iktdev.eventi.testUtil
 
-import no.iktdev.eventi.events.EventListenerRegistry
-import no.iktdev.eventi.events.EventTypeRegistry
-import no.iktdev.eventi.tasks.TaskListenerRegistry
-import no.iktdev.eventi.tasks.TaskTypeRegistry
+import no.iktdev.eventi.registry.EventListenerRegistry
+import no.iktdev.eventi.registry.EventTypeRegistry
+import no.iktdev.eventi.registry.TaskListenerRegistry
+import no.iktdev.eventi.registry.TaskTypeRegistry
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.api.assertDoesNotThrow

@@ -1,10 +1,7 @@
 package no.iktdev.eventi.events
 
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineDispatcher
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.runTest
@@ -17,6 +14,8 @@ import no.iktdev.eventi.EventDispatcherTest.TriggerEvent
 import no.iktdev.eventi.MyTime
 import no.iktdev.eventi.TestBase
 import no.iktdev.eventi.models.Event
+import no.iktdev.eventi.registry.EventListenerRegistry
+import no.iktdev.eventi.registry.EventTypeRegistry
 import no.iktdev.eventi.testUtil.TestSequenceDispatchQueue
 import no.iktdev.eventi.testUtil.wipe
 import org.junit.jupiter.api.Assertions.assertEquals

@@ -1,7 +1,8 @@
-package no.iktdev.eventi.events
+package no.iktdev.eventi.registry
 
 import no.iktdev.eventi.ListenerOrder
 import no.iktdev.eventi.ListenerRegistryImplementation
+import no.iktdev.eventi.events.EventListener
 
 object EventListenerRegistry : ListenerRegistryImplementation<EventListener>() {
     override fun getListeners(): List<EventListener> {

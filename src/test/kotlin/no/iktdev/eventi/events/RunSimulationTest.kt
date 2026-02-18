@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test
 import java.util.UUID
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Metadata
+import no.iktdev.eventi.registry.EventTypeRegistry
 import org.junit.jupiter.api.DisplayName
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
