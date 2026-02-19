@@ -68,30 +68,53 @@ abstract class TaskPollerImplementation(
         val results = mutableListOf<PollResult>()
 
         for (task in tasks) {
-            val listener = TaskListenerRegistry.getListeners()
-                .firstOrNull { it.supports(task) && !it.isBusy } ?: continue
 
-            val reporter = reporterFactory(task)
-            val accepted = try {
-                listener.accept(task, reporter)
-            } catch (e: Exception) {
-                log.error(e) { "Error while processing task ${task.taskId} by listener ${listener.getWorkerId()}" }
-                false
+            val candidates = TaskListenerRegistry.getListeners()
+                .filter { it.supports(task) && !it.isBusy }
+
+            if (candidates.isEmpty()) {
+                results += PollResult(
+                    taskId = task.taskId.toString(),
+                    type = task::class.simpleName.toString(),
+                    statusPlain = "[IGNORED]",
+                    statusColored = colorize("[IGNORED]", Color.YELLOW),
+                    listener = "NO_MATCHING_LISTENER"
+                )
+                continue
             }
 
-            // Plain status (used for alignment) and colored status (used for display)
-            val (statusPlain, statusColored) = when {
-                accepted -> Pair("[ACCEPTED]", colorize("[ACCEPTED]", Color.GREEN))
-                else -> Pair("[IGNORED]", colorize("[IGNORED]", Color.YELLOW))
-            }
+            var accepted = false
 
-            results += PollResult(
-                taskId = task.taskId.toString(),
-                type = task::class.simpleName.toString(),
-                statusPlain = statusPlain,
-                statusColored = statusColored,
-                listener = listener.getWorkerId()
-            )
+            for (listener in candidates) {
+                val reporter = reporterFactory(task)
+
+                val ok = try {
+                    listener.accept(task, reporter)
+                } catch (e: Exception) {
+                    log.error(e) {
+                        "Error while processing task ${task.taskId} by listener ${listener.getWorkerId()}"
+                    }
+                    false
+                }
+
+                val (statusPlain, statusColored) = when {
+                    ok -> "[ACCEPTED]" to colorize("[ACCEPTED]", Color.GREEN)
+                    else -> "[IGNORED]" to colorize("[IGNORED]", Color.YELLOW)
+                }
+
+                results += PollResult(
+                    taskId = task.taskId.toString(),
+                    type = task::class.simpleName.toString(),
+                    statusPlain = statusPlain,
+                    statusColored = statusColored,
+                    listener = listener.getWorkerId()
+                )
+
+                if (ok) {
+                    accepted = true
+                    break
+                }
+            }
 
             acceptedAny = acceptedAny || accepted
         }
