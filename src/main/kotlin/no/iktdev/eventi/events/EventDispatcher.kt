@@ -13,16 +13,14 @@ open class EventDispatcher(val eventStore: EventStore) {
     private val log = KotlinLogging.logger {}
 
     open fun dispatch(referenceId: UUID, events: List<Event>) {
-        val derivedFromIds = events.mapNotNull { it.metadata.derivedFromId }.flatten().toSet()
         val deletedEventIds = events.filterIsInstance<DeleteEvent>().map { it.deletedEventId }
 
         val candidates = events
-            .filterNot { it is SignalEvent }
-            .filter { it.eventId !in derivedFromIds }
-            .filter { it.eventId !in deletedEventIds }
+            .validEvents(deletedEventIds)
+            .replayCandidates()
 
         val effectiveHistory = events
-            .filter { it.eventId !in deletedEventIds }
+            .validEvents(deletedEventIds)
             .filterNot { it is DeleteEvent }
 
         EventListenerRegistry.getListeners().forEach { listener ->
@@ -49,6 +47,18 @@ open class EventDispatcher(val eventStore: EventStore) {
                 }
             }
         }
+    }
+
+    fun List<Event>.replayCandidates(): List<Event> {
+        val derivedFromIds = this.mapNotNull { it.metadata.derivedFromId }.flatten().toSet()
+
+        return this
+            .filterNot { it is SignalEvent }
+            .filter { it.eventId !in derivedFromIds }
+    }
+
+    fun List<Event>.validEvents(deletedEventIds: List<UUID>): List<Event> {
+        return this.filter {it.eventId !in deletedEventIds }
     }
 
     /**

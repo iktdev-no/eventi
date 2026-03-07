@@ -371,6 +371,65 @@ class EventDispatcherTest : TestBase() {
         }
     }
 
+    @Test
+    @DisplayName(
+        """
+    Når et event er slettet
+    Hvis det finnes et tidligere ikke-signal, ikke-derived event
+    Så skal replayCandidates() velge dette eventet som kandidat
+    """
+    )
+    fun replayShouldSelectLastValidEventWhenLaterEventIsDeleted() {
+        val dispatcher = EventDispatcher(eventStore)
+        val referenceId = UUID.randomUUID()
+
+        val received = mutableListOf<Event>()
+
+        // Lytter som fanger replay-kandidater
+        object : EventListener() {
+            override fun onEvent(event: Event, history: List<Event>): Event? {
+                received += event
+                return null
+            }
+        }
+
+        // 1) Første gyldige event
+        val trigger = EventDispatcherTest.TriggerEvent().usingReferenceId(referenceId)
+
+        // 2) Derived event (skal filtreres bort av replayCandidates)
+        val derived = EventDispatcherTest.DerivedEvent().derivedOf(trigger)
+
+        // 3) DeleteEvent som sletter derived-eventet
+        val deleted = object : DeleteEvent(derived.eventId) {}.apply {
+            usingReferenceId(referenceId)
+        }
+
+        // Dispatch med alle tre
+        dispatcher.dispatch(referenceId, listOf(trigger, derived, deleted))
+
+        // --- Assertions ---
+
+        // TriggerEvent skal være replay-kandidat
+        assertTrue(
+            received.any { it.eventId == trigger.eventId },
+            "TriggerEvent skal være replay-kandidat når derived-eventet er slettet"
+        )
+
+        // DerivedEvent skal IKKE være kandidat
+        assertFalse(
+            received.any { it.eventId == derived.eventId },
+            "DerivedEvent skal ikke være replay-kandidat"
+        )
+
+        // DeleteEvent *kan* være kandidat, men viktigst er at trigger fortsatt er det
+        assertTrue(
+            received.any { it.eventId == deleted.eventId } || received.any { it.eventId == trigger.eventId },
+            "Minst én gyldig kandidat skal leveres (forventet i hvert fall TriggerEvent)"
+        )
+
+    }
+
+
 
     // --- Test helpers ---
 
