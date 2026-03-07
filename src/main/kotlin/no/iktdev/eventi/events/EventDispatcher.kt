@@ -25,6 +25,7 @@ open class EventDispatcher(val eventStore: EventStore) {
 
         EventListenerRegistry.getListeners().forEach { listener ->
             for (candidate in candidates) {
+                log.debug("Evaluating candidate: ${candidate::class.simpleName} for listener ${listener::class.simpleName}")
                 try {
                     val result = listener.onEvent(candidate, effectiveHistory)
 
@@ -35,26 +36,28 @@ open class EventDispatcher(val eventStore: EventStore) {
                     }
 
                 } catch (e: SoftDispatchException.UnqualifiedEntryEventException) {
-                    log.debug("Soft-dispatch skip (unqualified entry): ${e.message}")
-
+                    log.debug("Skipped: ${listener::class.simpleName} ignored ${candidate::class.simpleName} → ${e.message}")
                 } catch (e: SoftDispatchException.SkipListenerException) {
-                    log.debug("Soft-dispatch skip: ${e.message}")
-
+                    log.debug("Skipped: ${listener::class.simpleName} skipped ${candidate::class.simpleName} → ${e.message}")
                 } catch (e: SoftDispatchException) {
                     log.warn(
-                        "Soft-dispatch in ${listener::class.simpleName} " +
-                                "for event ${e.eventType?.simpleName}: ${e.message}"
+                        "Skipped: ${listener::class.simpleName} rejected ${candidate::class.simpleName} → ${e.message}"
                     )
+
                 }
             }
         }
     }
 
     fun List<Event>.replayCandidates(): List<Event> {
-        val derivedFromIds = this.mapNotNull { it.metadata.derivedFromId }.flatten().toSet()
+        val derivedFromIds = this
+            .filterNot { it is SignalEvent }      // ignorer signaler som “forbrukere”
+            .mapNotNull { it.metadata.derivedFromId }
+            .flatten()
+            .toSet()
 
         return this
-            .filterNot { it is SignalEvent }
+            .filterNot { it is SignalEvent }      // signaler er fortsatt ikke kandidater
             .filter { it.eventId !in derivedFromIds }
     }
 
