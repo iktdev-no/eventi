@@ -4,6 +4,7 @@ import no.iktdev.eventi.serialization.ZDS.toEvent
 import no.iktdev.eventi.serialization.ZDS.toPersisted
 import no.iktdev.eventi.events.EventDispatcher
 import no.iktdev.eventi.events.EventListener
+import no.iktdev.eventi.events.HardDispatchException
 import no.iktdev.eventi.registry.EventTypeRegistry
 import no.iktdev.eventi.models.DeleteEvent
 import no.iktdev.eventi.models.Event
@@ -15,10 +16,12 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertNotNull
+import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import java.util.UUID
 
 @DisplayName(
@@ -429,6 +432,84 @@ class EventDispatcherTest : TestBase() {
 
     }
 
+    @Test
+    @DisplayName(
+        """
+    Når en lytter produserer en derived event fra en historisk hendelse
+    Hvis lytteren ikke tillater historisk derivation
+    Så skal IllegalDerivationException kastes
+    """
+    )
+    fun shouldThrowWhenDerivingFromHistoricalEventWithoutOptIn() {
+        val dispatcher = EventDispatcher(eventStore)
+        val referenceId = UUID.randomUUID()
+
+        // Historikk
+        val e1 = TriggerEvent().usingReferenceId(referenceId)
+        val e2 = OtherEvent().usingReferenceId(referenceId)
+        val e3 = DummyEvent().usingReferenceId(referenceId)
+
+        // Dispatch-kandidat
+        val e4 = TriggerEvent().usingReferenceId(referenceId)
+
+        // Lytter som produserer en ulovlig derived event
+        object : EventListener() {
+            override fun onEvent(event: Event, history: List<Event>): Event? {
+                if (event == e4) {
+                    return DerivedEvent().derivedOf(e2) // ← ulovlig uten opt-in
+                }
+                return null
+            }
+        }
+
+        val context = listOf(e1, e2, e3, e4)
+
+        assertThrows(HardDispatchException.IllegalDerivationException::class.java) {
+            dispatcher.dispatch(referenceId, context)
+        }
+    }
+
+    @Test
+    @DisplayName(
+        """
+    Når en lytter produserer en derived event fra en historisk hendelse
+    Hvis lytteren tillater historisk derivation
+    Så skal dispatch fullføre uten feil
+    """
+    )
+    fun shouldAllowHistoricalDerivationWhenOptInIsEnabled() {
+        val dispatcher = EventDispatcher(eventStore)
+        val referenceId = UUID.randomUUID()
+
+        // Historikk
+        val e1 = TriggerEvent().usingReferenceId(referenceId)
+        val e2 = OtherEvent().usingReferenceId(referenceId)
+        val e3 = DummyEvent().usingReferenceId(referenceId)
+
+        // Dispatch-kandidat
+        val e4 = TriggerEvent().usingReferenceId(referenceId)
+
+        // Lytter som tillater historisk derivation
+        object : EventListener() {
+            override fun allowDerivativeOnHistoricalEvent(): Boolean = true
+
+            override fun onEvent(event: Event, history: List<Event>): Event? {
+                if (event == e4) {
+                    return DerivedEvent().derivedOf(e2) // ← lovlig med opt-in
+                }
+                return null
+            }
+        }
+
+        val context = listOf(e1, e2, e3, e4)
+
+        dispatcher.dispatch(referenceId, context)
+
+        val produced = eventStore.all().mapNotNull { it.toEvent() }
+        assertEquals(1, produced.size)
+        assertTrue(produced.first() is DerivedEvent)
+        assertTrue(produced.first().metadata.derivedFromId!!.contains(e2.eventId))
+    }
 
 
     // --- Test helpers ---

@@ -30,6 +30,7 @@ open class EventDispatcher(val eventStore: EventStore) {
 
                     if (result != null) {
                         validateReferenceId(result, listener)
+                        validateDerivation(result, candidate, effectiveHistory, listener)
                         eventStore.persist(result)
                     }
 
@@ -76,4 +77,45 @@ open class EventDispatcher(val eventStore: EventStore) {
             )
         }
     }
+
+    private fun validateDerivation(
+        producedEvent: Event,
+        sourceEvent: Event,
+        history: List<Event>,
+        listener: EventListener
+    ) {
+        val parents = producedEvent.metadata.derivedFromId ?: emptyList()
+        if (parents.isEmpty()) return
+
+        // Lytteren har eksplisitt opt-in → da er alt i historikken lov
+        if (listener.allowDerivativeOnHistoricalEvent()) {
+            // Men vi kan fortsatt nekte Signal/Delete som parent hvis du vil
+            val historyById = history.associateBy { it.eventId }
+            parents.forEach { parentId ->
+                val parent = historyById[parentId]
+                if (parent is SignalEvent || parent is DeleteEvent) {
+                    throw HardDispatchException.IllegalDerivationException(
+                        parentId = parentId,
+                        producedEvent = producedEvent,
+                        listener = listener
+                    )
+                }
+            }
+            return
+        }
+
+        // Default: kun lov å derivere fra sourceEvent
+        parents.forEach { parentId ->
+            if (parentId != sourceEvent.eventId) {
+                throw HardDispatchException.IllegalDerivationException(
+                    parentId = parentId,
+                    producedEvent = producedEvent,
+                    listener = listener
+                )
+            }
+        }
+    }
+
+
+
 }
