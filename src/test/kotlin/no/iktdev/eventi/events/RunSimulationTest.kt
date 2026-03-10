@@ -262,4 +262,90 @@ class RunSimulationTestTest {
         assertThat(dispatcher.dispatched).hasSize(1)
         assertThat(dispatcher.dispatched.single().second).hasSize(2)
     }
+
+    @Test
+    @DisplayName("""
+    Når én referanse ligger foran i tid
+    Hvis en annen referanse får events med nyere timestamp
+    Så skal polleren hente begge (ingen watermark-skew mellom refs)
+    """)
+    fun pollerDoesNotSkipLaggingReferenceWithNewerEvents() = runTest(testDispatcher) {
+        val refA = UUID.randomUUID()
+        val refB = UUID.randomUUID()
+
+        // A får et event først
+        val tA = Instant.parse("2026-01-22T12:00:00Z")
+        store.persistAt(TestEvent().withReference(refA), tA)
+
+        poller.pollOnce()
+        advanceUntilIdle()
+
+        assertThat(poller.lastSeenTime).isGreaterThan(tA)
+
+        // B får et event med *nyere* timestamp enn lastSeenTime
+        val tB = Instant.parse("2026-01-22T12:05:00Z")
+        store.persistAt(TestEvent().withReference(refB), tB)
+
+        poller.pollOnce()
+        advanceUntilIdle()
+
+        assertThat(dispatcher.dispatched.any { it.first == refB }).isTrue()
+    }
+
+    @Test
+    @DisplayName("""
+        Når lastSeenTime er flyttet frem av en referanse
+        Hvis en ny referanse dukker opp med nyere timestamp
+        Så skal polleren hente den nye referansen korrekt
+    """)
+    fun pollerHandlesNewReferenceAfterLastSeenTimeMoves() = runTest(testDispatcher) {
+        val refA = UUID.randomUUID()
+        val refC = UUID.randomUUID()
+
+        // A får event → flytter lastSeenTime frem
+        val tA = Instant.parse("2026-01-22T12:00:00Z")
+        store.persistAt(TestEvent().withReference(refA), tA)
+
+        poller.pollOnce()
+        advanceUntilIdle()
+
+        // C får event med nyere timestamp
+        val tC = Instant.parse("2026-01-22T12:05:00Z")
+        store.persistAt(TestEvent().withReference(refC), tC)
+
+        poller.pollOnce()
+        advanceUntilIdle()
+
+        assertThat(dispatcher.dispatched.any { it.first == refC }).isTrue()
+    }
+
+    @Test
+    @DisplayName("""
+        Når polleren har kjørt og lastSeenTime er oppdatert
+        Hvis et event ankommer rett etter poll-runden
+        Så skal polleren hente det i neste runde
+    """)
+    fun pollerDoesNotMissEventsArrivingBetweenPolls() = runTest(testDispatcher) {
+        val ref = UUID.randomUUID()
+
+        // Første event
+        val t1 = Instant.parse("2026-01-22T12:00:00Z")
+        store.persistAt(TestEvent().withReference(ref), t1)
+
+        poller.pollOnce()
+        advanceUntilIdle()
+
+        // Event som ankommer rett etter poll
+        val t2 = t1.plusMillis(1)
+        store.persistAt(TestEvent().withReference(ref), t2)
+
+        poller.pollOnce()
+        advanceUntilIdle()
+
+        // Skal ha to dispatches for ref
+        val eventsForRef = dispatcher.dispatched.filter { it.first == ref }
+        assertThat(eventsForRef).hasSize(2)
+    }
+
+
 }

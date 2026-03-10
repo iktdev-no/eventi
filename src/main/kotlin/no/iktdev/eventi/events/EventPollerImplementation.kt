@@ -51,11 +51,7 @@ abstract class EventPollerImplementation(
         log.debug { "🔍 Polling for new events" }
 
         // Determine global scan start
-        val minRefTs = refWatermark.values.minOfOrNull { it.first }
-        val scanFrom = when (minRefTs) {
-            null -> lastSeenTime
-            else -> maxOf(lastSeenTime, minRefTs)
-        }
+        val scanFrom = lastSeenTime
 
         val newPersisted = eventStore.getPersistedEventsAfter(scanFrom)
 

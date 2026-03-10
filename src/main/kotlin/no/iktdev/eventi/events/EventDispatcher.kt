@@ -57,12 +57,18 @@ open class EventDispatcher(val eventStore: EventStore) {
         result: DispatchResult,
         message: String? = null
     ) {
-        val base = "[${event.referenceId.short()}]: ${event.eventId.short()} → ${event::class.java.simpleName}"
         val listenerName = listener::class.java.simpleName
+        val ref = event.referenceId.short()
+        val evtId = event.eventId.short()
+        val evtName = event::class.java.simpleName
+
         val msg = buildString {
-            append("$base | $listenerName → $result")
-            if (!message.isNullOrBlank()) append(" ($message)")
+            append("[$ref] $listenerName → $evtId $evtName")
+            if (!message.isNullOrBlank()) {
+                append("\n  ↳ $message")
+            }
         }
+
 
         when (result) {
             DispatchResult.Accepted,
