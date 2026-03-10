@@ -2,14 +2,9 @@ package no.iktdev.eventi.events
 
 import mu.KotlinLogging
 import no.iktdev.eventi.models.DeleteEvent
+import no.iktdev.eventi.models.DispatchResult
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.SignalEvent
-import no.iktdev.eventi.models.diagnostics.DispatchLog
-import no.iktdev.eventi.models.diagnostics.accept
-import no.iktdev.eventi.models.diagnostics.error
-import no.iktdev.eventi.models.diagnostics.ignored
-import no.iktdev.eventi.models.diagnostics.rejected
-import no.iktdev.eventi.models.diagnostics.skipped
 import no.iktdev.eventi.registry.EventListenerRegistry
 import no.iktdev.eventi.stores.EventStore
 import java.util.UUID
@@ -30,7 +25,6 @@ open class EventDispatcher(val eventStore: EventStore) {
             .filterNot { it is DeleteEvent }
 
         EventListenerRegistry.getListeners().forEach { listener ->
-            var dispatchLog: MutableList<DispatchLog> = mutableListOf()
             for (candidate in candidates) {
                 //log.debug("Evaluating candidate: ${candidate::class.simpleName} for listener ${listener::class.simpleName}")
                 try {
@@ -40,34 +34,47 @@ open class EventDispatcher(val eventStore: EventStore) {
                         validateReferenceId(result, listener)
                         validateDerivation(result, candidate, effectiveHistory, listener)
                         eventStore.persist(result)
-                        dispatchLog.accept(candidate, listener)
+                        onDispatched(candidate, listener, DispatchResult.Accepted)
                     } else {
-                        dispatchLog.ignored(candidate, listener)
+                        onDispatched(candidate, listener, DispatchResult.NoResult)
                     }
 
                 } catch (e: SoftDispatchException.UnqualifiedEntryEventException) {
-                    dispatchLog.rejected(candidate, listener, e.message)
+                    onDispatched(candidate, listener, DispatchResult.Rejected, e.message)
                 } catch (e: SoftDispatchException.SkipListenerException) {
-                    dispatchLog.skipped(candidate, listener, e.message)
+                    onDispatched(candidate, listener, DispatchResult.Skipped, e.message)
                 } catch (e: SoftDispatchException) {
-                    dispatchLog.error(candidate, listener, e.message)
+                    onDispatched(candidate, listener, DispatchResult.Error, e.message)
                 }
-                printLog(dispatchLog)
             }
         }
     }
 
-    fun printLog(dispatchLog: List<DispatchLog>) {
-        val first = dispatchLog.first()
-        var output: String = "[${first.event.referenceId}] @ [${first.event.eventId}] → ${first.event::class.java.name}\n"
-        dispatchLog.forEach { it ->
-            output += "\t${it.getTypeStyled()}\t ${it.listener::class.java.name}\t"
-            if (!it.message.isNullOrBlank()) {
-                output += it.message
-            }
-            output += "\n"
+    open fun onDispatched(
+        event: Event,
+        listener: EventListener,
+        result: DispatchResult,
+        message: String? = null
+    ) {
+        val base = "[${event.referenceId}] @ [${event.eventId}] → ${event::class.java.simpleName}"
+        val listenerName = listener::class.java.simpleName
+        val msg = buildString {
+            append("$base | $listenerName → $result")
+            if (!message.isNullOrBlank()) append(" ($message)")
         }
-        log.debug(output)
+
+        when (result) {
+            DispatchResult.Accepted,
+            DispatchResult.NoResult,
+            DispatchResult.Skipped ->
+                log.debug { msg }
+
+            DispatchResult.Rejected ->
+                log.warn { msg }
+
+            DispatchResult.Error ->
+                log.error { msg }
+        }
     }
 
     fun List<Event>.replayCandidates(): List<Event> {
