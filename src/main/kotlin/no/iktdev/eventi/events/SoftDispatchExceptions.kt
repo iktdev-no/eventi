@@ -15,10 +15,10 @@ sealed class SoftDispatchException(
     )
 
     class SkipListenerException(
-        reason: String,
+        reason: String? = "",
         currentEvent: Class<out Event>
     ) : SoftDispatchException(
-        message = "Listener skipped: $reason",
+        message = reason?.ifBlank { "Skipping Listener" } ?: "Listener skipped: $reason",
         eventType = currentEvent
     )
 
