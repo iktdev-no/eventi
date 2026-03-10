@@ -278,7 +278,7 @@ class EventDispatcherTest : TestBase() {
         val referenceId = UUID.randomUUID()
         val e1 = TriggerEvent().usingReferenceId(referenceId)
         val e2 = OtherEvent().usingReferenceId(referenceId)
-        val deleted = object : DeleteEvent(e1.eventId) {}
+        val deleted = object : DeleteEvent(e1.eventId){}.newReferenceId()
 
         var receivedHistory: List<Event> = emptyList()
 
