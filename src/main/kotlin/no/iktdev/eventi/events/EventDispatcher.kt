@@ -50,13 +50,14 @@ open class EventDispatcher(val eventStore: EventStore) {
         }
     }
 
+    private fun UUID.short(): String = this.toString().substring(0, 8)
     open fun onDispatched(
         event: Event,
         listener: EventListener,
         result: DispatchResult,
         message: String? = null
     ) {
-        val base = "[${event.referenceId}] @ [${event.eventId}] → ${event::class.java.simpleName}"
+        val base = "[${event.referenceId.short()}]: ${event.eventId.short()} → ${event::class.java.simpleName}"
         val listenerName = listener::class.java.simpleName
         val msg = buildString {
             append("$base | $listenerName → $result")
