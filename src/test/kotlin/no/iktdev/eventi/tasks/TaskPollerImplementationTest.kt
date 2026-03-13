@@ -88,7 +88,7 @@ class TaskPollerImplementationTest : TestBase() {
         override fun supports(task: Task) = task is EchoTask
 
         override suspend fun onTask(task: Task): Event {
-            withHeartbeatRunner(1.seconds) {
+            withHeartbeatRunner() {
                 println("Heartbeat")
             }
             if (task is EchoTask) {

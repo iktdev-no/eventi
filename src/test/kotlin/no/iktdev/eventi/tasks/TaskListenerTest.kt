@@ -70,7 +70,7 @@ class TaskListenerTest {
             override suspend fun onTask(task: Task): Event? {
                 onTaskCalled = true
 
-                withHeartbeatRunner(10.milliseconds) {
+                withHeartbeatRunner() {
                     heartbeatRan = true
                 }
 
@@ -117,7 +117,7 @@ class TaskListenerTest {
             override fun supports(task: Task) = true
 
             override suspend fun onTask(task: Task): Event {
-                withHeartbeatRunner(10.milliseconds) {
+                withHeartbeatRunner() {
                     heartbeatRan = true
                 }
 
@@ -175,7 +175,7 @@ class TaskListenerTest {
             override fun supports(task: Task) = true
 
             override suspend fun onTask(task: Task): Event? {
-                withHeartbeatRunner(10.milliseconds) {
+                withHeartbeatRunner() {
                     heartbeatRan = true
                 }
 
@@ -239,7 +239,7 @@ class TaskListenerTest {
             override suspend fun onTask(task: Task): Event {
                 onTaskCalled = true
 
-                withHeartbeatRunner(10.milliseconds) {
+                withHeartbeatRunner() {
                     heartbeatRan = true
                 }
 

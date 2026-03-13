@@ -15,8 +15,6 @@ import no.iktdev.eventi.registry.TaskListenerRegistry
 import org.jetbrains.annotations.VisibleForTesting
 import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
-import kotlin.time.Duration
-import kotlin.time.Duration.Companion.minutes
 
 /**
  * Abstract base class for handling tasks with asynchronous processing and reporting.
@@ -52,7 +50,8 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
     private val heartbeatScope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
     @VisibleForTesting
     internal var heartbeatRunner: Job? = null
-    fun withHeartbeatRunner(interval: Duration = 5.minutes, block: () -> Unit): Job {
+    fun withHeartbeatRunner(block: () -> Unit): Job {
+        val interval = GlobalTaskPolicy.policy.heartbeatInterval()
         return heartbeatScope.launch {
             while (isActive) {
                 block()
