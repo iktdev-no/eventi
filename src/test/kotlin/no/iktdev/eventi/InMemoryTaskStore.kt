@@ -5,10 +5,12 @@ import no.iktdev.eventi.models.Task
 import no.iktdev.eventi.models.store.PersistedTask
 import no.iktdev.eventi.models.store.TaskStatus
 import no.iktdev.eventi.stores.TaskStore
+import no.iktdev.eventi.tasks.GlobalTaskPolicy
 import java.time.Duration
 import java.time.temporal.ChronoUnit
 import java.util.UUID
 import kotlin.concurrent.atomics.AtomicReference
+import kotlin.time.toJavaDuration
 
 open class InMemoryTaskStore : TaskStore {
     private val tasks = mutableListOf<PersistedTask>()
@@ -47,10 +49,11 @@ open class InMemoryTaskStore : TaskStore {
         return true
     }
 
-    override fun releaseExpiredTasks(timeout: Duration) {
-        val now = MyTime.utcNow()
+    override fun releaseExpiredTasks() {
+        val timeout = GlobalTaskPolicy.policy.abandonTimeout()
+        val now = MyTime.utcNow().minus(timeout.toJavaDuration())
         tasks.filter {
-            it.claimed && !it.consumed && it.lastCheckIn?.isBefore(now.minus(timeout)) == true
+            it.claimed && !it.consumed && it.lastCheckIn?.isBefore(now.minus(timeout.toJavaDuration())) == true
         }.forEach {
             update(it.copy(claimed = false, claimedBy = null, lastCheckIn = null))
         }

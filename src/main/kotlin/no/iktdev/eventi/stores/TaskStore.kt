@@ -16,7 +16,7 @@ interface TaskStore {
     fun claim(taskId: UUID, workerId: String): Boolean
     fun heartbeat(taskId: UUID): Boolean
     fun markConsumed(taskId: UUID, status: TaskStatus): Boolean
-    fun releaseExpiredTasks(timeout: Duration = Duration.ofMinutes(15))
+    fun releaseExpiredTasks()
 
     fun getPendingTasks(): List<PersistedTask>
 }
