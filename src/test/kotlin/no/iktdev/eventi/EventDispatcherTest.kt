@@ -5,6 +5,7 @@ import no.iktdev.eventi.serialization.ZDS.toPersisted
 import no.iktdev.eventi.events.EventDispatcher
 import no.iktdev.eventi.events.EventListener
 import no.iktdev.eventi.events.HardDispatchException
+import no.iktdev.eventi.lifecycle.LifecycleStore
 import no.iktdev.eventi.registry.EventTypeRegistry
 import no.iktdev.eventi.models.DeleteEvent
 import no.iktdev.eventi.models.Event
@@ -28,8 +29,8 @@ Så skal dispatcheren håndtere filtrering, replays og historikk korrekt
 """
 )
 class EventDispatcherTest : TestBase() {
-
-    val dispatcher = EventDispatcher(eventStore)
+    val lifecycleStore = LifecycleStore()
+    val dispatcher = EventDispatcher(eventStore, lifecycleStore)
 
     class DerivedEvent : Event()
     class TriggerEvent : Event()
@@ -147,7 +148,7 @@ class EventDispatcherTest : TestBase() {
     fun shouldNotDeliverDeletedEventsAsCandidates() {
         val referenceId = UUID.randomUUID()
 
-        val dispatcher = EventDispatcher(eventStore)
+        val dispatcher = EventDispatcher(eventStore, lifecycleStore)
         val received = mutableListOf<Event>()
 
         object : EventListener() {
@@ -229,7 +230,7 @@ class EventDispatcherTest : TestBase() {
     """
     )
     fun historyShouldExcludeDeletedEvents() {
-        val dispatcher = EventDispatcher(eventStore)
+        val dispatcher = EventDispatcher(eventStore, lifecycleStore)
 
         val original = TriggerEvent().newReferenceId()
         val deleted = object : DeleteEvent(original.eventId) {}.apply { usingReferenceId(original.referenceId) }
@@ -258,7 +259,7 @@ class EventDispatcherTest : TestBase() {
     """
     )
     fun historyShouldKeepNonDeletedEvents() {
-        val dispatcher = EventDispatcher(eventStore)
+        val dispatcher = EventDispatcher(eventStore, lifecycleStore)
         val referenceId = UUID.randomUUID()
         val e1 = TriggerEvent().usingReferenceId(referenceId)
         val e2 = OtherEvent().usingReferenceId(referenceId)
@@ -289,7 +290,7 @@ class EventDispatcherTest : TestBase() {
     """
     )
     fun deleteEventShouldBeDeliveredButHistoryEmpty() {
-        val dispatcher = EventDispatcher(eventStore)
+        val dispatcher = EventDispatcher(eventStore, lifecycleStore)
 
         val original = TriggerEvent().newReferenceId()
         val deleted = object : DeleteEvent(original.eventId) {}.apply { newReferenceId() }
@@ -356,7 +357,7 @@ class EventDispatcherTest : TestBase() {
     """
     )
     fun replayShouldSelectLastValidEventWhenLaterEventIsDeleted() {
-        val dispatcher = EventDispatcher(eventStore)
+        val dispatcher = EventDispatcher(eventStore, lifecycleStore)
         val referenceId = UUID.randomUUID()
 
         val received = mutableListOf<Event>()
@@ -389,7 +390,7 @@ class EventDispatcherTest : TestBase() {
     """
     )
     fun shouldThrowWhenDerivingFromHistoricalEventWithoutOptIn() {
-        val dispatcher = EventDispatcher(eventStore)
+        val dispatcher = EventDispatcher(eventStore, lifecycleStore)
         val referenceId = UUID.randomUUID()
 
         // Historikk
@@ -426,7 +427,7 @@ class EventDispatcherTest : TestBase() {
     """
     )
     fun shouldAllowHistoricalDerivationWhenOptInIsEnabled() {
-        val dispatcher = EventDispatcher(eventStore)
+        val dispatcher = EventDispatcher(eventStore, lifecycleStore)
         val referenceId = UUID.randomUUID()
 
         // Historikk

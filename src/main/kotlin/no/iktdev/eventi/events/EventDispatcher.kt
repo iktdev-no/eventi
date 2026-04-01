@@ -2,6 +2,10 @@ package no.iktdev.eventi.events
 
 import kotlinx.coroutines.Job
 import mu.KotlinLogging
+import no.iktdev.eventi.MyTime
+import no.iktdev.eventi.lifecycle.LifecycleStore
+import no.iktdev.eventi.lifecycle.ListenerFatalError
+import no.iktdev.eventi.lifecycle.ListenerResult
 import no.iktdev.eventi.models.DeleteEvent
 import no.iktdev.eventi.models.DispatchResult
 import no.iktdev.eventi.models.Event
@@ -10,7 +14,7 @@ import no.iktdev.eventi.registry.EventListenerRegistry
 import no.iktdev.eventi.stores.EventStore
 import java.util.UUID
 
-open class EventDispatcher(val eventStore: EventStore) {
+open class EventDispatcher(val eventStore: EventStore, private val lifecycleStore: LifecycleStore) {
 
     private val log = KotlinLogging.logger {}
 
@@ -35,17 +39,78 @@ open class EventDispatcher(val eventStore: EventStore) {
                         validateReferenceId(result, listener)
                         validateDerivation(result, candidate, effectiveHistory, listener)
                         eventStore.persist(result)
+                        lifecycleStore.add(
+                            ListenerResult(
+                                timestamp = MyTime.utcNow(),
+                                ref = referenceId,
+                                listener = listener::class.java.simpleName,
+                                result = "Accepted"
+                            )
+                        )
                         onDispatched(candidate, listener, DispatchResult.Accepted)
                     } else {
+                        lifecycleStore.add(
+                            ListenerResult(
+                                timestamp = MyTime.utcNow(),
+                                ref = referenceId,
+                                listener = listener::class.java.simpleName,
+                                result = "NoResult"
+                            )
+                        )
                         onDispatched(candidate, listener, DispatchResult.NoResult)
                     }
 
                 } catch (e: SoftDispatchException.UnqualifiedEntryEventException) {
+                    lifecycleStore.add(
+                        ListenerResult(
+                            timestamp = MyTime.utcNow(),
+                            ref = referenceId,
+                            listener = listener::class.java.simpleName,
+                            result = "Rejected: ${e.message}"
+                        )
+                    )
                     onDispatched(candidate, listener, DispatchResult.Rejected, e.message)
                 } catch (e: SoftDispatchException.SkipListenerException) {
+                    lifecycleStore.add(
+                        ListenerResult(
+                            timestamp = MyTime.utcNow(),
+                            ref = referenceId,
+                            listener = listener::class.java.simpleName,
+                            result = "Skipped: ${e.message}"
+                        )
+                    )
                     onDispatched(candidate, listener, DispatchResult.Skipped, e.message)
                 } catch (e: SoftDispatchException) {
+                    lifecycleStore.add(
+                        ListenerResult(
+                            timestamp = MyTime.utcNow(),
+                            ref = referenceId,
+                            listener = listener::class.java.simpleName,
+                            result = "Error: ${e.message}"
+                        )
+                    )
                     onDispatched(candidate, listener, DispatchResult.Error, e.message)
+                } catch (e: Exception) {
+
+                    // ⭐ NYTT: Fatal exception
+                    lifecycleStore.add(
+                        ListenerFatalError(
+                            timestamp = MyTime.utcNow(),
+                            ref = referenceId,
+                            listener = listener::class.java.simpleName,
+                            eventName = candidate::class.java.simpleName,
+                            exception = "${e::class.java.simpleName}: ${e.message}"
+                        )
+                    )
+
+                    // Du kan velge å logge dette hardt
+                    log.error(e) { "Fatal exception in listener ${listener::class.java.simpleName}" }
+
+                    // Og du kan velge hva du gjør videre:
+                    // - rethrow (stopper dispatch)
+                    // - swallow (fortsetter)
+                    // - wrap i HardDispatchException
+                    throw e
                 }
             }
         }

@@ -14,6 +14,7 @@ import no.iktdev.eventi.EventDispatcherTest.OtherEvent
 import no.iktdev.eventi.EventDispatcherTest.TriggerEvent
 import no.iktdev.eventi.MyTime
 import no.iktdev.eventi.TestBase
+import no.iktdev.eventi.lifecycle.LifecycleStore
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.registry.EventListenerRegistry
 import no.iktdev.eventi.registry.EventTypeRegistry
@@ -39,7 +40,8 @@ Så skal polleren dispatch'e riktig, oppdatere lastSeenTime og unngå duplikater
 """)
 class EventPollerImplementationTest : TestBase() {
 
-    private val dispatcher = EventDispatcher(eventStore)
+    val lifecycleStore = LifecycleStore()
+    private val dispatcher = EventDispatcher(eventStore, lifecycleStore)
 
     @BeforeEach
     fun setup() {
@@ -64,8 +66,8 @@ class EventPollerImplementationTest : TestBase() {
     """)
     fun pollOnceDispatchesAllNewReferenceIdsAndUpdatesLastSeenTime() = runTest {
         val testDispatcher = StandardTestDispatcher(testScheduler)
-        val queue = TestSequenceDispatchQueue(maxConcurrency = 8, dispatcher = testDispatcher)
-        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher) {}
+        val queue = TestSequenceDispatchQueue(maxConcurrency = 8, dispatcher = testDispatcher, lifecycleStore)
+        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher, lifecycleStore) {}
 
         val dispatched = ConcurrentHashMap.newKeySet<UUID>()
         val completionMap = mutableMapOf<UUID, CompletableDeferred<Unit>>()
@@ -102,9 +104,9 @@ class EventPollerImplementationTest : TestBase() {
     """)
     fun pollOnceIncreasesBackoffWhenNoEventsAndResetsWhenEventsArrive() = runTest {
         val testDispatcher = StandardTestDispatcher(testScheduler)
-        val queue = TestSequenceDispatchQueue(maxConcurrency = 8, dispatcher = testDispatcher)
+        val queue = TestSequenceDispatchQueue(maxConcurrency = 8, dispatcher = testDispatcher, lifecycleStore)
 
-        val testPoller = object : EventPollerImplementation(eventStore, queue, dispatcher) {
+        val testPoller = object : EventPollerImplementation(eventStore, queue, dispatcher, lifecycleStore) {
             fun currentBackoff(): Duration = backoff
         }
 
@@ -133,8 +135,8 @@ class EventPollerImplementationTest : TestBase() {
     """)
     fun pollOnceGroupsAndDispatchesExactlyThreeEventsForOneReferenceId() = runTest {
         val testDispatcher = StandardTestDispatcher(testScheduler)
-        val queue = TestSequenceDispatchQueue(maxConcurrency = 8, dispatcher = testDispatcher)
-        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher) {}
+        val queue = TestSequenceDispatchQueue(maxConcurrency = 8, dispatcher = testDispatcher, lifecycleStore)
+        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher, lifecycleStore) {}
 
         val refId = UUID.randomUUID()
         val received = mutableListOf<Event>()
@@ -173,9 +175,9 @@ class EventPollerImplementationTest : TestBase() {
     """)
     fun pollOnceIgnoresEventsBeforeLastSeenTime() = runTest {
         val testDispatcher = StandardTestDispatcher(testScheduler)
-        val queue = TestSequenceDispatchQueue(maxConcurrency = 8, dispatcher = testDispatcher)
+        val queue = TestSequenceDispatchQueue(maxConcurrency = 8, dispatcher = testDispatcher, lifecycleStore)
 
-        val testPoller = object : EventPollerImplementation(eventStore, queue, dispatcher) {
+        val testPoller = object : EventPollerImplementation(eventStore, queue, dispatcher, lifecycleStore) {
             init {
                 lastSeenTime = MyTime.utcNow().plusSeconds(1)
             }
@@ -199,8 +201,8 @@ class EventPollerImplementationTest : TestBase() {
     """)
     fun pollerHandlesManuallyInjectedDuplicateEvent() = runTest {
         val testDispatcher = StandardTestDispatcher(testScheduler)
-        val queue = TestSequenceDispatchQueue(maxConcurrency = 8, dispatcher = testDispatcher)
-        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher) {}
+        val queue = TestSequenceDispatchQueue(maxConcurrency = 8, dispatcher = testDispatcher, lifecycleStore)
+        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher, lifecycleStore) {}
 
         EventTypeRegistry.register(listOf(MarcoEvent::class.java, EchoEvent::class.java))
 
@@ -251,9 +253,9 @@ class EventPollerImplementationTest : TestBase() {
 """)
     fun pollerDoesNotLoseEventsWithIdenticalTimestamps() = runTest {
         val testDispatcher = StandardTestDispatcher(testScheduler)
-        val queue = TestSequenceDispatchQueue(maxConcurrency = 1, dispatcher = testDispatcher)
+        val queue = TestSequenceDispatchQueue(maxConcurrency = 1, dispatcher = testDispatcher, lifecycleStore)
 
-        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher) {
+        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher, lifecycleStore) {
             public override fun updateWatermark(ref: UUID, value: Pair<Instant, Long>) {
                 super.updateWatermark(ref, value)
             }
@@ -315,9 +317,9 @@ class EventPollerImplementationTest : TestBase() {
         """)
     fun pollerDoesNotRedispatchEventsWithIdenticalTimestamps() = runTest {
         val testDispatcher = StandardTestDispatcher(testScheduler)
-        val queue = TestSequenceDispatchQueue(maxConcurrency = 1, dispatcher = testDispatcher)
+        val queue = TestSequenceDispatchQueue(maxConcurrency = 1, dispatcher = testDispatcher, lifecycleStore)
 
-        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher) {
+        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher, lifecycleStore) {
             public override fun updateWatermark(ref: UUID, value: Pair<Instant, Long>) {
                 super.updateWatermark(ref, value)
             }
@@ -368,9 +370,9 @@ class EventPollerImplementationTest : TestBase() {
     """)
     fun pollerDoesNotSkipOtherReferencesWithSameTimestamp() = runTest {
         val testDispatcher = StandardTestDispatcher(testScheduler)
-        val queue = TestSequenceDispatchQueue(maxConcurrency = 1, dispatcher = testDispatcher)
+        val queue = TestSequenceDispatchQueue(maxConcurrency = 1, dispatcher = testDispatcher, lifecycleStore)
 
-        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher) {
+        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher, lifecycleStore) {
             public override fun updateWatermark(ref: UUID, value: Pair<Instant, Long>) {
                 super.updateWatermark(ref, value)
             }

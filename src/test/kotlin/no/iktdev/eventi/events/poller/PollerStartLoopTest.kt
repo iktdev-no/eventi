@@ -11,6 +11,7 @@ import no.iktdev.eventi.events.FakeDispatcher
 import no.iktdev.eventi.events.RunSimulationTestTest
 import no.iktdev.eventi.events.SequenceDispatchQueue
 import no.iktdev.eventi.events.TestEvent
+import no.iktdev.eventi.lifecycle.LifecycleStore
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Metadata
 import no.iktdev.eventi.models.store.PersistedEvent
@@ -32,6 +33,7 @@ Hvis events ankommer, refs er busy eller watermark flytter seg
 Så skal polleren håndtere backoff, dispatch og livelock korrekt
 """)
 class PollerStartLoopTest : TestBase() {
+    private val lifecycleStore = LifecycleStore()
 
     private lateinit var store: InMemoryEventStore
     private lateinit var dispatcher: FakeDispatcher
@@ -46,13 +48,13 @@ class PollerStartLoopTest : TestBase() {
     @BeforeEach
     fun setup() {
         store = InMemoryEventStore()
-        dispatcher = FakeDispatcher()
+        dispatcher = FakeDispatcher(lifecycleStore)
         testDispatcher = StandardTestDispatcher()
         scope = TestScope(testDispatcher)
-        queue = RunSimulationTestTest.ControlledDispatchQueue(scope)
+        queue = RunSimulationTestTest.ControlledDispatchQueue(scope, lifecycleStore)
         EventTypeRegistry.register(TestEvent::class.java)
 
-        poller = TestablePoller(store, queue, dispatcher, scope)
+        poller = TestablePoller(store, queue, dispatcher, scope, lifecycleStore)
     }
 
     private fun persistAt(ref: UUID, time: Instant) {
@@ -463,13 +465,13 @@ class PollerStartLoopTest : TestBase() {
             override fun persist(event: Event) = Unit
         }
 
-        val queue = SequenceDispatchQueue()
-        class NoopDispatcher : EventDispatcher(fakeStore) {
+        val queue = SequenceDispatchQueue(lifecycleStore = lifecycleStore)
+        class NoopDispatcher(lifecycleStore: LifecycleStore) : EventDispatcher(fakeStore, lifecycleStore) {
             override fun dispatch(referenceId: UUID, history: List<Event>, newEvents: List<Event>) {}
         }
 
-        val dispatcher = NoopDispatcher()
-        val poller = TestablePoller(fakeStore, queue, dispatcher, scope)
+        val dispatcher = NoopDispatcher(lifecycleStore)
+        val poller = TestablePoller(fakeStore, queue, dispatcher, scope, lifecycleStore)
 
         // Sett watermark høyt (polleren setter watermark selv i ekte drift,
         // men i denne testen må vi simulere det)

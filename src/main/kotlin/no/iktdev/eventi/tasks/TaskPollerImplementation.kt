@@ -1,7 +1,20 @@
 package no.iktdev.eventi.tasks
 
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.time.delay
 import mu.KotlinLogging
+import no.iktdev.eventi.MyTime
+import no.iktdev.eventi.lifecycle.LifecycleStore
+import no.iktdev.eventi.lifecycle.LifecycleTaskReporter
+import no.iktdev.eventi.lifecycle.TaskListenerFatalError
+import no.iktdev.eventi.lifecycle.TaskListenerInvoked
+import no.iktdev.eventi.lifecycle.TaskListenerResult
+import no.iktdev.eventi.lifecycle.TaskPollerBackoff
+import no.iktdev.eventi.lifecycle.TaskPollerCycleStart
+import no.iktdev.eventi.lifecycle.TaskPollerFetched
+import no.iktdev.eventi.lifecycle.TaskState
+import no.iktdev.eventi.lifecycle.TaskStateSummary
+import no.iktdev.eventi.lifecycle.TaskStatus
 import no.iktdev.eventi.serialization.ZDS.toTask
 import no.iktdev.eventi.models.Task
 import no.iktdev.eventi.registry.TaskListenerRegistry
@@ -10,7 +23,8 @@ import java.time.Duration
 
 abstract class TaskPollerImplementation(
     private val taskStore: TaskStore,
-    private val reporterFactory: (Task) -> TaskReporter
+    private val lifecycleStore: LifecycleStore,
+    private val reporterFactory: (Task) -> TaskReporter,
 ) {
     private val log = KotlinLogging.logger {}
 
@@ -35,19 +49,46 @@ abstract class TaskPollerImplementation(
                 pollOnce()
             } catch (e: Exception) {
                 log.error(e) { "Unhandled error in poll loop, backing off for $backoff" }
-                delay(backoff.toMillis())
+                lifecycleStore.add(
+                    TaskListenerFatalError(
+                        timestamp = MyTime.utcNow(),
+                        taskId = "N/A",
+                        listener = "TaskPoller",
+                        exception = "${e::class.java.simpleName}: ${e.message}",
+                        stacktrace = e.stackTraceToString()
+                    )
+                )
+                delay(backoff)
                 backoff = backoff.multipliedBy(2).coerceAtMost(maxBackoff)
             }
         }
     }
 
     suspend fun pollOnce() {
+        lifecycleStore.add(
+            TaskPollerCycleStart(
+                timestamp = MyTime.utcNow()
+            )
+        )
         log.debug { "Polling for pending tasks…" }
         val newPersistedTasks = taskStore.getPendingTasks()
 
+        lifecycleStore.add(
+            TaskPollerFetched(
+                timestamp = MyTime.utcNow(),
+                count = newPersistedTasks.size
+            )
+        )
+
         if (newPersistedTasks.isEmpty()) {
+            lifecycleStore.add(
+                TaskPollerBackoff(
+                    timestamp = MyTime.utcNow(),
+                    backoffMillis = backoff.toMillis()
+                )
+            )
             log.debug { "No pending tasks found. Backing off for $backoff" }
-            delay(backoff.toMillis())
+            delay(backoff)
             backoff = backoff.multipliedBy(2).coerceAtMost(maxBackoff)
             return
         }
@@ -73,6 +114,14 @@ abstract class TaskPollerImplementation(
                 .filter { it.supports(task) && !it.isBusy }
 
             if (candidates.isEmpty()) {
+                lifecycleStore.add(
+                    TaskListenerResult(
+                        timestamp = MyTime.utcNow(),
+                        taskId = task.taskId.toString(),
+                        listener = "NO_MATCHING_LISTENER",
+                        result = "IGNORED"
+                    )
+                )
                 results += PollResult(
                     taskId = task.taskId.toString(),
                     type = task::class.simpleName.toString(),
@@ -86,16 +135,45 @@ abstract class TaskPollerImplementation(
             var accepted = false
 
             for (listener in candidates) {
-                val reporter = reporterFactory(task)
+                val reporter = LifecycleTaskReporter(
+                    delegate = reporterFactory(task),
+                    lifecycleStore = lifecycleStore
+                )
+
+                lifecycleStore.add(
+                    TaskListenerInvoked(
+                        timestamp = MyTime.utcNow(),
+                        taskId = task.taskId.toString(),
+                        listener = listener.getWorkerId()
+                    )
+                )
 
                 val ok = try {
                     listener.accept(task, reporter)
                 } catch (e: Exception) {
+                    lifecycleStore.add(
+                        TaskListenerFatalError(
+                            timestamp = MyTime.utcNow(),
+                            taskId = task.taskId.toString(),
+                            listener = listener.getWorkerId(),
+                            exception = "${e::class.java.simpleName}: ${e.message}",
+                            stacktrace = e.stackTraceToString()
+                        )
+                    )
                     log.error(e) {
                         "Error while processing task ${task.taskId} by listener ${listener.getWorkerId()}"
                     }
                     false
                 }
+
+                lifecycleStore.add(
+                    TaskListenerResult(
+                        timestamp = MyTime.utcNow(),
+                        taskId = task.taskId.toString(),
+                        listener = listener.getWorkerId(),
+                        result = if (ok) "ACCEPTED" else "IGNORED"
+                    )
+                )
 
                 val (statusPlain, statusColored) = when {
                     ok -> "[ACCEPTED]" to colorize("[ACCEPTED]", Color.GREEN)
@@ -123,8 +201,14 @@ abstract class TaskPollerImplementation(
         log.debug { formatTaskReport(results) }
 
         if (!acceptedAny) {
+            lifecycleStore.add(
+                TaskPollerBackoff(
+                    timestamp = MyTime.utcNow(),
+                    backoffMillis = backoff.toMillis()
+                )
+            )
             log.debug { "No tasks were accepted. Backing off for $backoff" }
-            delay(backoff.toMillis())
+            delay(backoff)
             backoff = backoff.multipliedBy(2).coerceAtMost(maxBackoff)
         } else {
             log.debug { "At least one task accepted. Resetting backoff." }
@@ -178,4 +262,24 @@ abstract class TaskPollerImplementation(
         val statusColored: String,
         val listener: String
     )
+
+    suspend fun taskState(): TaskStateSummary {
+        val now = MyTime.utcNow()
+        val pending = taskStore.getPendingTasks()
+
+        return TaskStateSummary(
+            taskBackoffMillis = backoff.toMillis(),
+            nextTaskPollExpectedAt = now.plusMillis(backoff.toMillis()),
+            pendingTasks = pending.size,
+            taskStates = pending.map {
+                TaskState(
+                    taskId = it.taskId.toString(),
+                    type = it.task,
+                    listener = null,
+                    status = TaskStatus.PENDING
+                )
+            }
+        )
+    }
+
 }

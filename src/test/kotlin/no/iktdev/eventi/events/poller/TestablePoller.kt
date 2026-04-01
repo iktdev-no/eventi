@@ -5,6 +5,7 @@ import kotlinx.coroutines.test.TestScope
 import no.iktdev.eventi.events.EventDispatcher
 import no.iktdev.eventi.events.EventPollerImplementation
 import no.iktdev.eventi.events.SequenceDispatchQueue
+import no.iktdev.eventi.lifecycle.LifecycleStore
 import no.iktdev.eventi.stores.EventStore
 import java.time.Instant
 import java.util.*
@@ -14,8 +15,9 @@ class TestablePoller(
     eventStore: EventStore,
     dispatchQueue: SequenceDispatchQueue,
     dispatcher: EventDispatcher,
-    val scope: TestScope
-) : EventPollerImplementation(eventStore, dispatchQueue, dispatcher), WatermarkDebugView {
+    val scope: TestScope,
+    private val lifecycleStore: LifecycleStore
+) : EventPollerImplementation(eventStore, dispatchQueue, dispatcher, lifecycleStore), WatermarkDebugView {
 
     suspend fun startFor(iterations: Int) {
         repeat(iterations) {

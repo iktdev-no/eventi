@@ -5,6 +5,7 @@ package no.iktdev.eventi.events
 import kotlinx.coroutines.*
 import kotlinx.coroutines.test.*
 import no.iktdev.eventi.InMemoryEventStore
+import no.iktdev.eventi.lifecycle.LifecycleStore
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -16,10 +17,10 @@ import org.junit.jupiter.api.DisplayName
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 
-
 class FakeDispatchQueue(
-    private val scope: CoroutineScope
-) : SequenceDispatchQueue(8, scope) {
+    private val scope: CoroutineScope,
+    private val lifecycleStore: LifecycleStore
+) : SequenceDispatchQueue(8, scope, lifecycleStore) {
 
     private val active = ConcurrentHashMap.newKeySet<UUID>()
 
@@ -38,7 +39,7 @@ class FakeDispatchQueue(
 }
 
 
-class FakeDispatcher : EventDispatcher(InMemoryEventStore()) {
+class FakeDispatcher(private val lifecycleStore: LifecycleStore) : EventDispatcher(InMemoryEventStore(), lifecycleStore) {
 
     val dispatched = mutableListOf<Pair<UUID, List<Event>>>()
 
@@ -67,6 +68,8 @@ Så skal polleren oppdatere lastSeenTime, unngå duplikater og prosessere riktig
 """)
 class RunSimulationTestTest {
 
+    val lifecycleStore = LifecycleStore()
+
     private lateinit var store: InMemoryEventStore
     private lateinit var dispatcher: FakeDispatcher
     private lateinit var testDispatcher: TestDispatcher
@@ -77,12 +80,12 @@ class RunSimulationTestTest {
     @BeforeEach
     fun setup() {
         store = InMemoryEventStore()
-        dispatcher = FakeDispatcher()
+        dispatcher = FakeDispatcher(lifecycleStore)
         testDispatcher = StandardTestDispatcher()
         scope = CoroutineScope(testDispatcher)
-        queue = FakeDispatchQueue(scope)
+        queue = FakeDispatchQueue(scope, lifecycleStore)
         EventTypeRegistry.register(TestEvent::class.java)
-        poller = object : EventPollerImplementation(store, queue, dispatcher) {
+        poller = object : EventPollerImplementation(store, queue, dispatcher, lifecycleStore) {
             override suspend fun start() = error("Do not call start() in tests")
         }
     }
@@ -110,7 +113,7 @@ class RunSimulationTestTest {
         assertThat(dispatcher.dispatched).hasSize(1)
     }
 
-    class AlwaysBusyDispatchQueue : SequenceDispatchQueue(8, CoroutineScope(Dispatchers.Default)) {
+    class AlwaysBusyDispatchQueue(private val lifecycleStore: LifecycleStore) : SequenceDispatchQueue(8, CoroutineScope(Dispatchers.Default), lifecycleStore) {
         override fun isProcessing(referenceId: UUID): Boolean = true
         override fun dispatch(referenceId: UUID, history: List<Event>, newEvents: List<Event>, dispatcher: EventDispatcher) = null
     }
@@ -127,8 +130,8 @@ class RunSimulationTestTest {
 
         store.persistAt(TestEvent().withReference(ref), t)
 
-        val busyQueue = AlwaysBusyDispatchQueue()
-        val poller = object : EventPollerImplementation(store, busyQueue, dispatcher) {}
+        val busyQueue = AlwaysBusyDispatchQueue(lifecycleStore)
+        val poller = object : EventPollerImplementation(store, busyQueue, dispatcher, lifecycleStore) {}
 
         poller.pollOnce()
         advanceUntilIdle()
@@ -211,8 +214,9 @@ class RunSimulationTestTest {
     }
 
     class ControlledDispatchQueue(
-        private val scope: CoroutineScope
-    ) : SequenceDispatchQueue(8, scope) {
+        private val scope: CoroutineScope,
+        private val lifecycleStore: LifecycleStore
+    ) : SequenceDispatchQueue(8, scope, lifecycleStore) {
 
         val busyRefs = mutableSetOf<UUID>()
 
@@ -237,10 +241,10 @@ class RunSimulationTestTest {
 
         persistEvent(ref)
 
-        val controlledQueue = ControlledDispatchQueue(scope)
+        val controlledQueue = ControlledDispatchQueue(scope, lifecycleStore)
         controlledQueue.busyRefs += ref
 
-        val poller = object : EventPollerImplementation(store, controlledQueue, dispatcher) {}
+        val poller = object : EventPollerImplementation(store, controlledQueue, dispatcher, lifecycleStore) {}
 
         // Poll #1: busy → no dispatch
         poller.pollOnce()

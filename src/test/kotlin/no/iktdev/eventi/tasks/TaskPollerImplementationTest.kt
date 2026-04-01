@@ -7,6 +7,7 @@ import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runTest
 import no.iktdev.eventi.InMemoryTaskStore
 import no.iktdev.eventi.TestBase
+import no.iktdev.eventi.lifecycle.LifecycleStore
 import no.iktdev.eventi.registry.EventTypeRegistry
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Progress
@@ -34,6 +35,7 @@ Hvis lyttere, backoff og event-produksjon fungerer som forventet
 Så skal polleren håndtere alle scenarier korrekt
 """)
 class TaskPollerImplementationTest : TestBase() {
+    private val lifecycleStore = LifecycleStore()
 
     @BeforeEach
     fun setup() {
@@ -65,8 +67,9 @@ class TaskPollerImplementationTest : TestBase() {
 
     class TaskPollerImplementationTest(
         taskStore: TaskStore,
-        reporterFactory: (Task) -> TaskReporter
-    ) : TaskPollerImplementation(taskStore, reporterFactory) {
+        reporterFactory: (Task) -> TaskReporter,
+        private val lifecycleStore: LifecycleStore
+    ) : TaskPollerImplementation(taskStore, lifecycleStore, reporterFactory) {
         fun overrideSetBackoff(duration: java.time.Duration) {
             backoff = duration
         }
@@ -116,7 +119,7 @@ class TaskPollerImplementationTest : TestBase() {
         EventTypeRegistry.register(EchoEvent::class.java)
 
         val listener = EchoListener()
-        val poller = object : TaskPollerImplementation(taskStore, reporterFactory) {}
+        val poller = object : TaskPollerImplementation(taskStore, lifecycleStore, reporterFactory) {}
 
         val task = EchoTask("Hello").newReferenceId().derivedOf(object : Event() {}.apply { newReferenceId() })
         taskStore.persist(task)
@@ -144,7 +147,7 @@ class TaskPollerImplementationTest : TestBase() {
         EventTypeRegistry.register(EchoEvent::class.java)
 
         val listener = EchoListener()
-        val poller = TaskPollerImplementationTest(taskStore, reporterFactory)
+        val poller = TaskPollerImplementationTest(taskStore, reporterFactory, lifecycleStore)
         val initialBackoff = poller.backoff
 
         poller.overrideSetBackoff(Duration.ofSeconds(16))
@@ -169,7 +172,7 @@ class TaskPollerImplementationTest : TestBase() {
     Så skal backoff dobles
     """)
     fun pollerIncreasesBackoffWhenNoTasks() = runTest {
-        val poller = object : TaskPollerImplementation(taskStore, reporterFactory) {}
+        val poller = object : TaskPollerImplementation(taskStore, lifecycleStore, reporterFactory) {}
         val initialBackoff = poller.backoff
 
         poller.pollOnce()
@@ -184,7 +187,7 @@ class TaskPollerImplementationTest : TestBase() {
     Så skal backoff dobles
     """)
     fun pollerIncreasesBackoffWhenNoListenerSupportsTask() = runTest {
-        val poller = object : TaskPollerImplementation(taskStore, reporterFactory) {}
+        val poller = object : TaskPollerImplementation(taskStore, lifecycleStore, reporterFactory) {}
         val initialBackoff = poller.backoff
 
         // as long as the task is not added to registry this will be unsupported
@@ -207,7 +210,7 @@ class TaskPollerImplementationTest : TestBase() {
             override val isBusy = true
         }
 
-        val poller = object : TaskPollerImplementation(taskStore, reporterFactory) {}
+        val poller = object : TaskPollerImplementation(taskStore, lifecycleStore, reporterFactory) {}
         val initialBackoff = poller.backoff
 
         val task = EchoTask("Busy").newReferenceId()
@@ -234,7 +237,7 @@ class TaskPollerImplementationTest : TestBase() {
             override fun claim(taskId: UUID, workerId: String) = false
         }
 
-        val poller = object : TaskPollerImplementation(failingStore, reporterFactory) {}
+        val poller = object : TaskPollerImplementation(failingStore, lifecycleStore, reporterFactory) {}
         val initialBackoff = poller.backoff
 
         failingStore.persist(task)

@@ -6,6 +6,7 @@ import no.iktdev.eventi.EventDispatcherTest.DerivedEvent
 import no.iktdev.eventi.EventDispatcherTest.OtherEvent
 import no.iktdev.eventi.EventDispatcherTest.TriggerEvent
 import no.iktdev.eventi.TestBase
+import no.iktdev.eventi.lifecycle.LifecycleStore
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.registry.EventListenerRegistry
 import no.iktdev.eventi.registry.EventTypeRegistry
@@ -24,6 +25,7 @@ Hvis køen har begrenset samtidighet
 Så skal alle events prosesseres uten tap
 """)
 class SequenceDispatchQueueTest : TestBase() {
+    private val lifecycleStore = LifecycleStore()
 
     @BeforeEach
     fun setup() {
@@ -46,8 +48,8 @@ class SequenceDispatchQueueTest : TestBase() {
     Så skal alle referenceId-er bli prosessert nøyaktig én gang
     """)
     fun shouldDispatchAllReferenceIdsWithLimitedConcurrency() = runTest {
-        val dispatcher = EventDispatcher(eventStore)
-        val queue = SequenceDispatchQueue(maxConcurrency = 8)
+        val dispatcher = EventDispatcher(eventStore, lifecycleStore)
+        val queue = SequenceDispatchQueue(maxConcurrency = 8, lifecycleStore = lifecycleStore)
 
         val dispatched = ConcurrentHashMap.newKeySet<UUID>()
 
