@@ -436,9 +436,9 @@ class PollerStartLoopTest : TestBase() {
 
     @Test
     @DisplayName("""
-    Når EventStore returnerer events som ligger før watermark
-    Hvis polleren ser dem i global scan
-    Så skal polleren ikke livelock'e og lastSeenTime skal flyttes forbi eventen
+        Når EventStore returnerer events som ligger før watermark
+        Hvis polleren ser dem i global scan
+        Så skal polleren ikke livelock'e og lastSeenTime skal flyttes frem til eventens timestamp
     """)
     fun `poller should not livelock when global scan sees events but watermark rejects them`() = runTest {
         val ref = UUID.randomUUID()
@@ -465,7 +465,7 @@ class PollerStartLoopTest : TestBase() {
 
         val queue = SequenceDispatchQueue()
         class NoopDispatcher : EventDispatcher(fakeStore) {
-            override fun dispatch(referenceId: UUID, events: List<Event>) {}
+            override fun dispatch(referenceId: UUID, history: List<Event>, newEvents: List<Event>) {}
         }
 
         val dispatcher = NoopDispatcher()
@@ -483,7 +483,7 @@ class PollerStartLoopTest : TestBase() {
 
         // Fixen skal flytte lastSeenTime forbi eventen
         assertThat<Instant>(poller.lastSeenTime)
-            .isGreaterThan(t(50))
+            .isEqualTo(t(50))
 
         // Andre poll: nå skal polleren IKKE spinne
         val before = poller.lastSeenTime

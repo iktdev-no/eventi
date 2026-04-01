@@ -27,13 +27,12 @@ open class SequenceDispatchQueue(
 
     open fun isProcessing(referenceId: UUID): Boolean = referenceId in active
 
-    open fun dispatch(referenceId: UUID, events: List<Event>, dispatcher: EventDispatcher): Job? {
+    open fun dispatch(referenceId: UUID, history: List<Event>, newEvents: List<Event>, dispatcher: EventDispatcher): Job? {
         if (!active.add(referenceId)) {
             log.debug {"⚠️ Already processing $referenceId, skipping dispatch"}
             return null
         }
-        log.debug {"▶️ Starting dispatch for $referenceId with ${events.size} events"}
-
+        log.debug {"▶️ Starting dispatch for $referenceId with ${history.size} events"}
 
         return scope.launch {
             try {
@@ -42,12 +41,11 @@ open class SequenceDispatchQueue(
                 log.debug {"🔓 Acquired semaphore for $referenceId"}
 
                 try {
-                    dispatcher.dispatch(referenceId, events)
+                    dispatcher.dispatch(referenceId, history, newEvents)
                 } catch (e: Exception) {
                     log.error("Dispatch failed for $referenceId: ${e.message}")
                     e.printStackTrace()
                 } finally {
-
                     semaphore.release()
                     log.debug {"✅ Released semaphore for $referenceId"}
                 }
@@ -57,4 +55,5 @@ open class SequenceDispatchQueue(
             }
         }
     }
+
 }

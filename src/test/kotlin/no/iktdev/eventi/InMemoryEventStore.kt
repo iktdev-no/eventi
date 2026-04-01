@@ -12,10 +12,16 @@ class InMemoryEventStore : EventStore {
     private var nextId = 1L
 
     override fun getPersistedEventsAfter(timestamp: Instant): List<PersistedEvent> =
-        persisted.filter { it.persistedAt > timestamp }
+        persisted
+            .filter { it.persistedAt > timestamp }
+            .sortedWith(compareBy<PersistedEvent> { it.persistedAt }.thenBy { it.id })
 
     override fun getPersistedEventsFor(referenceId: UUID): List<PersistedEvent> =
-        persisted.filter { it.referenceId == referenceId }
+        persisted
+            .filter { it.referenceId == referenceId }
+            .sortedWith(compareBy<PersistedEvent> { it.persistedAt }.thenBy { it.id })
+
+
 
     override fun persist(event: Event) {
         val persistedEvent = event.toPersisted(nextId++, MyTime.utcNow())

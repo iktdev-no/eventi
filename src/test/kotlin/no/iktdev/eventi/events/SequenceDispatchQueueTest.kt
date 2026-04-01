@@ -66,7 +66,7 @@ class SequenceDispatchQueueTest : TestBase() {
         val jobs = referenceIds.mapNotNull { refId ->
             val e = TriggerEvent().usingReferenceId(refId)
             eventStore.persist(e)
-            queue.dispatch(refId, listOf(e), dispatcher)
+            queue.dispatch(refId, listOf(e), listOf(e), dispatcher)
         }
 
         jobs.joinAll()

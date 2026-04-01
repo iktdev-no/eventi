@@ -8,6 +8,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.test.advanceUntilIdle
 import no.iktdev.eventi.EventDispatcherTest.DerivedEvent
 import no.iktdev.eventi.EventDispatcherTest.OtherEvent
 import no.iktdev.eventi.EventDispatcherTest.TriggerEvent
@@ -25,8 +26,10 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
 import java.time.Duration
+import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.time.Duration.Companion.milliseconds
 
 @DisplayName("""
 EventPollerImplementation
@@ -219,7 +222,7 @@ class EventPollerImplementationTest : TestBase() {
         poller.pollOnce()
 
         withContext(testDispatcher) {
-            withTimeout(60_000) {
+            withTimeout(60_000.milliseconds) {
                 channel.receive()
             }
         }
@@ -230,7 +233,7 @@ class EventPollerImplementationTest : TestBase() {
         poller.pollOnce()
 
         withContext(testDispatcher) {
-            withTimeout(60_000) {
+            withTimeout(60_000.milliseconds) {
                 channel.receive()
             }
         }
@@ -238,4 +241,175 @@ class EventPollerImplementationTest : TestBase() {
         assertEquals(2, handled.size)
         assertTrue(handled.any { it.eventId == original.eventId })
     }
+
+
+    @Test
+    @DisplayName("""
+    Når tre events har identisk persistedAt
+    Hvis watermark peker på første event
+    Så skal polleren fortsatt hente e2 og e3 (ikke miste events)
+""")
+    fun pollerDoesNotLoseEventsWithIdenticalTimestamps() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val queue = TestSequenceDispatchQueue(maxConcurrency = 1, dispatcher = testDispatcher)
+
+        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher) {
+            public override fun updateWatermark(ref: UUID, value: Pair<Instant, Long>) {
+                super.updateWatermark(ref, value)
+            }
+
+        }
+
+        EventTypeRegistry.wipe()
+        EventListenerRegistry.wipe()
+        eventStore.clear()
+
+        EventTypeRegistry.register(listOf(TriggerEvent::class.java))
+
+        val refId = UUID.randomUUID()
+        val dispatched = mutableListOf<UUID>()
+
+        EventListenerRegistry.registerListener(
+            object : EventListener() {
+                override fun onEvent(event: Event, history: List<Event>): Event? {
+                    dispatched += event.eventId
+                    return null
+                }
+            }
+        )
+
+        val ts = MyTime.utcNow()
+
+        val e1 = TriggerEvent().usingReferenceId(refId).also { eventStore.persistAt(it, ts) }
+        val e2 = TriggerEvent().usingReferenceId(refId).also { eventStore.persistAt(it, ts) }
+        val e3 = TriggerEvent().usingReferenceId(refId).also { eventStore.persistAt(it, ts) }
+
+        // Første poll: polleren ser alle tre, men watermark settes til e3
+        poller.pollOnce()
+        advanceUntilIdle()
+
+        // Nå simulerer vi den gamle buggen:
+        // Sett watermark tilbake til e1
+        val persistedId1 = eventStore.all().first { it.eventId == e1.eventId }.id
+        poller.updateWatermark(refId, ts to persistedId1)
+
+        // Sett lastSeenTime tilbake til ts (ikke etter ts!)
+        poller.lastSeenTime = ts
+
+        // Andre poll: polleren skal hente e2 og e3
+        poller.pollOnce()
+        advanceUntilIdle()
+
+        assertEquals(
+            setOf(e1.eventId, e2.eventId, e3.eventId),
+            dispatched.toSet(),
+            "Polleren skal ikke miste events med identisk timestamp"
+        )
+    }
+
+    @Test
+    @DisplayName("""
+        Når tre events har identisk persistedAt
+        Hvis polleren kjøres to ganger
+        Så skal events kun dispatch'es én gang (ingen re-dispatch)
+        """)
+    fun pollerDoesNotRedispatchEventsWithIdenticalTimestamps() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val queue = TestSequenceDispatchQueue(maxConcurrency = 1, dispatcher = testDispatcher)
+
+        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher) {
+            public override fun updateWatermark(ref: UUID, value: Pair<Instant, Long>) {
+                super.updateWatermark(ref, value)
+            }
+        }
+
+        EventTypeRegistry.wipe()
+        EventListenerRegistry.wipe()
+        eventStore.clear()
+
+        EventTypeRegistry.register(listOf(TriggerEvent::class.java))
+
+        val refId = UUID.randomUUID()
+        val dispatched = mutableListOf<UUID>()
+
+        val listener = object : EventListener() {
+            override fun onEvent(event: Event, history: List<Event>): Event? {
+                dispatched += event.eventId
+                return null
+            }
+        }
+
+        val ts = MyTime.utcNow()
+
+        repeat(3) {
+            eventStore.persistAt(TriggerEvent().usingReferenceId(refId), ts)
+        }
+
+        // Første poll: alle tre events dispatch'es
+        poller.pollOnce()
+        advanceUntilIdle()
+
+        // Andre poll: watermark + lastSeenTime skal hindre re-dispatch
+        poller.pollOnce()
+        advanceUntilIdle()
+
+        assertEquals(
+            3,
+            dispatched.size,
+            "Polleren skal ikke re-dispatch'e events med identisk timestamp"
+        )
+    }
+
+    @Test
+    @DisplayName("""
+    Når én referanse ligger foran i tid
+    Hvis en annen referanse får events med samme persistedAt
+    Så skal polleren hente begge (ingen watermark-skew mellom refs)
+    """)
+    fun pollerDoesNotSkipOtherReferencesWithSameTimestamp() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val queue = TestSequenceDispatchQueue(maxConcurrency = 1, dispatcher = testDispatcher)
+
+        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher) {
+            public override fun updateWatermark(ref: UUID, value: Pair<Instant, Long>) {
+                super.updateWatermark(ref, value)
+            }
+        }
+
+        EventTypeRegistry.wipe()
+        EventListenerRegistry.wipe()
+        eventStore.clear()
+
+        EventTypeRegistry.register(listOf(TriggerEvent::class.java))
+
+        val refA = UUID.randomUUID()
+        val refB = UUID.randomUUID()
+        val dispatched = mutableListOf<UUID>()
+
+        EventListenerRegistry.registerListener(
+            object : EventListener() {
+                override fun onEvent(event: Event, history: List<Event>): Event? {
+                    dispatched += event.eventId
+                    return null
+                }
+            }
+        )
+
+        val ts = MyTime.utcNow()
+
+        val eA = TriggerEvent().usingReferenceId(refA).also { eventStore.persistAt(it, ts) }
+        val eB = TriggerEvent().usingReferenceId(refB).also { eventStore.persistAt(it, ts) }
+
+        poller.pollOnce()
+        advanceUntilIdle()
+
+        assertEquals(
+            setOf(eA.eventId, eB.eventId),
+            dispatched.toSet(),
+            "Polleren skal ikke hoppe over referanser med identisk timestamp"
+        )
+    }
+
+
+
 }

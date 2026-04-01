@@ -25,11 +25,11 @@ class FakeDispatchQueue(
 
     override fun isProcessing(referenceId: UUID): Boolean = referenceId in active
 
-    override fun dispatch(referenceId: UUID, events: List<Event>, dispatcher: EventDispatcher): Job {
+    override fun dispatch(referenceId: UUID, history: List<Event>, newEvents: List<Event>, dispatcher: EventDispatcher): Job {
         active.add(referenceId)
         return scope.launch {
             try {
-                dispatcher.dispatch(referenceId, events)
+                dispatcher.dispatch(referenceId, history, newEvents)
             } finally {
                 active.remove(referenceId)
             }
@@ -42,8 +42,8 @@ class FakeDispatcher : EventDispatcher(InMemoryEventStore()) {
 
     val dispatched = mutableListOf<Pair<UUID, List<Event>>>()
 
-    override fun dispatch(referenceId: UUID, events: List<Event>) {
-        dispatched += referenceId to events
+    override fun dispatch(referenceId: UUID, history: List<Event>, newEvents: List<Event>) {
+        dispatched += referenceId to history
     }
 }
 
@@ -112,14 +112,14 @@ class RunSimulationTestTest {
 
     class AlwaysBusyDispatchQueue : SequenceDispatchQueue(8, CoroutineScope(Dispatchers.Default)) {
         override fun isProcessing(referenceId: UUID): Boolean = true
-        override fun dispatch(referenceId: UUID, events: List<Event>, dispatcher: EventDispatcher) = null
+        override fun dispatch(referenceId: UUID, history: List<Event>, newEvents: List<Event>, dispatcher: EventDispatcher) = null
     }
 
     @Test
     @DisplayName("""
-    Når køen er travel og ikke kan dispatch'e
-    Hvis polleren likevel ser nye events
-    Så skal lastSeenTime fortsatt oppdateres (livelock-fix)
+        Når køen er travel og ikke kan dispatch'e
+        Hvis polleren likevel ser nye events
+        Så skal lastSeenTime flyttes frem til eventets timestamp (slik at polleren ikke livelock'er)
     """)
     fun pollerUpdatesLastSeenTimeEvenWhenQueueBusy() = runTest {
         val ref = UUID.randomUUID()
@@ -134,8 +134,7 @@ class RunSimulationTestTest {
         advanceUntilIdle()
 
         // Etter livelock-fixen skal lastSeenTime være *etter* eventet
-        assertThat(poller.lastSeenTime)
-            .isGreaterThan(t)
+        assertThat(poller.lastSeenTime).isGreaterThanOrEqualTo(t)
     }
 
     @Test
@@ -220,9 +219,9 @@ class RunSimulationTestTest {
         override fun isProcessing(referenceId: UUID): Boolean =
             referenceId in busyRefs
 
-        override fun dispatch(referenceId: UUID, events: List<Event>, dispatcher: EventDispatcher): Job {
+        override fun dispatch(referenceId: UUID, history: List<Event>, newEvents: List<Event>, dispatcher: EventDispatcher): Job {
             return scope.launch {
-                dispatcher.dispatch(referenceId, events)
+                dispatcher.dispatch(referenceId, history, newEvents)
             }
         }
     }
@@ -265,9 +264,9 @@ class RunSimulationTestTest {
 
     @Test
     @DisplayName("""
-    Når én referanse ligger foran i tid
-    Hvis en annen referanse får events med nyere timestamp
-    Så skal polleren hente begge (ingen watermark-skew mellom refs)
+        Når én referanse ligger foran i tid
+        Hvis en annen referanse får events med nyere timestamp
+        Så skal polleren hente begge (ingen watermark-skew mellom refs, lastSeenTime flyttes frem til eventets timestamp)
     """)
     fun pollerDoesNotSkipLaggingReferenceWithNewerEvents() = runTest(testDispatcher) {
         val refA = UUID.randomUUID()
@@ -280,7 +279,7 @@ class RunSimulationTestTest {
         poller.pollOnce()
         advanceUntilIdle()
 
-        assertThat(poller.lastSeenTime).isGreaterThan(tA)
+        assertThat(poller.lastSeenTime).isGreaterThanOrEqualTo(tA)
 
         // B får et event med *nyere* timestamp enn lastSeenTime
         val tB = Instant.parse("2026-01-22T12:05:00Z")

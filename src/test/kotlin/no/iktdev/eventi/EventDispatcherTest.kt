@@ -13,15 +13,10 @@ import no.iktdev.eventi.registry.EventListenerRegistry
 import no.iktdev.eventi.registry.TaskTypeRegistry
 import no.iktdev.eventi.testUtil.wipe
 import org.assertj.core.api.Assertions.assertThat
-import org.junit.jupiter.api.Assertions.assertEquals
-import org.junit.jupiter.api.Assertions.assertFalse
-import org.junit.jupiter.api.Assertions.assertNotNull
-import org.junit.jupiter.api.Assertions.assertThrows
-import org.junit.jupiter.api.Assertions.assertTrue
+import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
 import java.util.UUID
 
 @DisplayName(
@@ -39,8 +34,7 @@ class EventDispatcherTest : TestBase() {
     class DerivedEvent : Event()
     class TriggerEvent : Event()
     class OtherEvent : Event()
-    class DummyEvent : Event() {
-    }
+    class DummyEvent : Event()
 
     @BeforeEach
     fun setup() {
@@ -69,7 +63,7 @@ class EventDispatcherTest : TestBase() {
         ProducingListener()
 
         val trigger = TriggerEvent().newReferenceId()
-        dispatcher.dispatch(trigger.referenceId, listOf(trigger))
+        dispatcher.dispatch(trigger.referenceId, listOf(trigger), listOf(trigger))
 
         val produced = eventStore.all().firstOrNull()
         assertNotNull(produced)
@@ -96,7 +90,7 @@ class EventDispatcherTest : TestBase() {
 
         eventStore.persist(derived!!.toEvent()!!) // simulate prior production
 
-        dispatcher.dispatch(trigger.referenceId, listOf(trigger, derived.toEvent()!!))
+        dispatcher.dispatch(trigger.referenceId, listOf(trigger, derived.toEvent()!!), listOf(trigger, derived.toEvent()!!))
 
         assertEquals(1, eventStore.all().size)
     }
@@ -114,7 +108,7 @@ class EventDispatcherTest : TestBase() {
 
         val e1 = TriggerEvent().newReferenceId()
         val e2 = OtherEvent().newReferenceId()
-        dispatcher.dispatch(e1.referenceId, listOf(e1, e2))
+        dispatcher.dispatch(e1.referenceId, listOf(e1, e2), listOf(e1, e2))
 
         assertEquals(2, listener.context.size)
     }
@@ -133,10 +127,11 @@ class EventDispatcherTest : TestBase() {
         ProducingListener()
 
         val trigger = TriggerEvent().usingReferenceId(referenceId)
-        dispatcher.dispatch(trigger.referenceId, listOf(trigger))
+        dispatcher.dispatch(trigger.referenceId, listOf(trigger), listOf(trigger))
+
         val replayContext = listOf(trigger) + eventStore.all().mapNotNull { it.toEvent() }
 
-        dispatcher.dispatch(trigger.referenceId, replayContext)
+        dispatcher.dispatch(trigger.referenceId, replayContext, replayContext)
 
         assertEquals(1, eventStore.all().size)
     }
@@ -161,24 +156,16 @@ class EventDispatcherTest : TestBase() {
                 return null
             }
         }
-        // Original hendelse
+
         val original = TriggerEvent().usingReferenceId(referenceId)
 
         // Slettehendelse som peker på original
         val deleted = object : DeleteEvent(original.eventId) {}.apply { newReferenceId() }
 
-        // Dispatch med begge hendelser
-        dispatcher.dispatch(original.referenceId, listOf(original, deleted))
+        dispatcher.dispatch(original.referenceId, listOf(original, deleted), listOf(original, deleted))
 
-        // Verifiser at original ikke ble levert som kandidat
-        assertFalse(received.contains(original)) {
-            "Original hendelse ble levert til lytteren selv om den var slettet"
-        }
-
-        // Verifiser at slett-hendelsen finnes i konteksten
-        assertTrue(received.any() { it is DeleteEvent }) {
-            "DeleteEvent skal leveres som kandidat"
-        }
+        assertFalse(received.contains(original))
+        assertTrue(received.any { it is DeleteEvent })
     }
 
     @Test
@@ -201,7 +188,7 @@ class EventDispatcherTest : TestBase() {
         }
 
         val deleted = object : DeleteEvent(UUID.randomUUID()) {}.apply { usingReferenceId(referenceId) }
-        dispatcher.dispatch(deleted.referenceId, listOf(deleted))
+        dispatcher.dispatch(deleted.referenceId, listOf(deleted), listOf(deleted))
 
         assertTrue(received.contains(deleted))
     }
@@ -218,8 +205,7 @@ class EventDispatcherTest : TestBase() {
         ProducingListener()
 
         val trigger = TriggerEvent().newReferenceId()
-        // Første dispatch: trigger produserer en DerivedEvent
-        dispatcher.dispatch(trigger.referenceId, listOf(trigger))
+        dispatcher.dispatch(trigger.referenceId, listOf(trigger), listOf(trigger))
 
         val produced = eventStore.all().mapNotNull { it.toEvent() }
         assertEquals(1, produced.size)
@@ -228,12 +214,10 @@ class EventDispatcherTest : TestBase() {
 
         // Replay: nå har vi både trigger og derived i konteksten
         val replayContext = listOf(trigger, derived)
-        dispatcher.dispatch(trigger.referenceId, replayContext)
+        dispatcher.dispatch(trigger.referenceId, replayContext, replayContext)
 
-        // Verifiser at ingen nye events ble produsert
-        assertEquals(1, eventStore.all().size) {
-            "TriggerEvent skal ikke leveres som kandidat igjen når den allerede har avledet en DerivedEvent"
-        }
+
+        assertEquals(1, eventStore.all().size)
     }
 
     @Test
@@ -259,7 +243,7 @@ class EventDispatcherTest : TestBase() {
             }
         }
 
-        dispatcher.dispatch(original.referenceId, listOf(original, deleted))
+        dispatcher.dispatch(original.referenceId, listOf(original, deleted), listOf(original, deleted))
 
         assertFalse(receivedHistory.contains(original))
         assertFalse(receivedHistory.contains(deleted))
@@ -289,7 +273,7 @@ class EventDispatcherTest : TestBase() {
             }
         }
 
-        dispatcher.dispatch(e1.referenceId, listOf(e1, e2, deleted))
+        dispatcher.dispatch(e1.referenceId, listOf(e1, e2, deleted), listOf(e1, e2, deleted))
 
         assertTrue(receivedHistory.contains(e2))
         assertFalse(receivedHistory.contains(e1))
@@ -321,7 +305,7 @@ class EventDispatcherTest : TestBase() {
             }
         }
 
-        dispatcher.dispatch(original.referenceId, listOf(original, deleted))
+        dispatcher.dispatch(original.referenceId, listOf(original, deleted), listOf(original, deleted))
 
         assertTrue(receivedEvent is DeleteEvent)
         assertTrue(receivedHistory.isEmpty())
@@ -329,7 +313,7 @@ class EventDispatcherTest : TestBase() {
 
     @Test
     @DisplayName(
-    """
+        """
     Når en SignalEvent dispatches
     Hvis SignalEvent ikke skal være kandidat
     Så skal den ikke leveres til lyttere, men fortsatt være i historikken
@@ -338,10 +322,11 @@ class EventDispatcherTest : TestBase() {
     fun shouldNotDeliverSignalEventAsCandidate() {
         // Arrange
         class TestSignalEvent : SignalEvent()
-        EventTypeRegistry.register(listOf(TestSignalEvent::class.java,))
+        EventTypeRegistry.register(listOf(TestSignalEvent::class.java))
 
         val received = mutableListOf<Event>()
         var finalHistory: List<Event>? = null
+
         object : EventListener() {
             override fun onEvent(event: Event, history: List<Event>): Event? {
                 received += event
@@ -354,24 +339,12 @@ class EventDispatcherTest : TestBase() {
         val trigger = TriggerEvent().usingReferenceId(refId)
         val signal = TestSignalEvent().usingReferenceId(refId)
 
-        // Act
-        dispatcher.dispatch(trigger.referenceId, listOf(trigger, signal))
+        dispatcher.dispatch(refId, listOf(trigger, signal), listOf(trigger, signal))
 
-        // Assert
-        // 1) TriggerEvent skal leveres
-        assertTrue(received.any { it is TriggerEvent }) {
-            "TriggerEvent skal leveres som kandidat"
-        }
-
-        // 2) SignalEvent skal IKKE leveres
-        assertFalse(received.any { it is TestSignalEvent }) {
-            "SignalEvent skal ikke leveres som kandidat"
-        }
-
+        assertTrue(received.any { it is TriggerEvent })
+        assertFalse(received.any { it is TestSignalEvent })
         assertNotNull(finalHistory)
-        assertTrue(finalHistory!!.any { it is TestSignalEvent }) {
-            "SignalEvent skal være i historikken selv om den ikke er kandidat"
-        }
+        assertTrue(finalHistory!!.any { it is TestSignalEvent })
     }
 
     @Test
@@ -396,40 +369,15 @@ class EventDispatcherTest : TestBase() {
             }
         }
 
-        // 1) Første gyldige event
-        val trigger = EventDispatcherTest.TriggerEvent().usingReferenceId(referenceId)
+        val trigger = TriggerEvent().usingReferenceId(referenceId)
+        val derived = DerivedEvent().derivedOf(trigger)
+        val deleted = object : DeleteEvent(derived.eventId) {}.apply { usingReferenceId(referenceId) }
 
-        // 2) Derived event (skal filtreres bort av replayCandidates)
-        val derived = EventDispatcherTest.DerivedEvent().derivedOf(trigger)
+        dispatcher.dispatch(referenceId, listOf(trigger, derived, deleted), listOf(trigger, derived, deleted))
 
-        // 3) DeleteEvent som sletter derived-eventet
-        val deleted = object : DeleteEvent(derived.eventId) {}.apply {
-            usingReferenceId(referenceId)
-        }
-
-        // Dispatch med alle tre
-        dispatcher.dispatch(referenceId, listOf(trigger, derived, deleted))
-
-        // --- Assertions ---
-
-        // TriggerEvent skal være replay-kandidat
-        assertTrue(
-            received.any { it.eventId == trigger.eventId },
-            "TriggerEvent skal være replay-kandidat når derived-eventet er slettet"
-        )
-
-        // DerivedEvent skal IKKE være kandidat
-        assertFalse(
-            received.any { it.eventId == derived.eventId },
-            "DerivedEvent skal ikke være replay-kandidat"
-        )
-
-        // DeleteEvent *kan* være kandidat, men viktigst er at trigger fortsatt er det
-        assertTrue(
-            received.any { it.eventId == deleted.eventId } || received.any { it.eventId == trigger.eventId },
-            "Minst én gyldig kandidat skal leveres (forventet i hvert fall TriggerEvent)"
-        )
-
+        assertTrue(received.any { it.eventId == trigger.eventId })
+        assertFalse(received.any { it.eventId == derived.eventId })
+        assertTrue(received.any { it.eventId == deleted.eventId } || received.any { it.eventId == trigger.eventId })
     }
 
     @Test
@@ -456,7 +404,7 @@ class EventDispatcherTest : TestBase() {
         object : EventListener() {
             override fun onEvent(event: Event, history: List<Event>): Event? {
                 if (event == e4) {
-                    return DerivedEvent().derivedOf(e2) // ← ulovlig uten opt-in
+                    return DerivedEvent().derivedOf(e2)
                 }
                 return null
             }
@@ -465,7 +413,7 @@ class EventDispatcherTest : TestBase() {
         val context = listOf(e1, e2, e3, e4)
 
         assertThrows(HardDispatchException.IllegalDerivationException::class.java) {
-            dispatcher.dispatch(referenceId, context)
+            dispatcher.dispatch(referenceId, context, listOf(e4))
         }
     }
 
@@ -495,7 +443,7 @@ class EventDispatcherTest : TestBase() {
 
             override fun onEvent(event: Event, history: List<Event>): Event? {
                 if (event == e4) {
-                    return DerivedEvent().derivedOf(e2) // ← lovlig med opt-in
+                    return DerivedEvent().derivedOf(e2)
                 }
                 return null
             }
@@ -503,14 +451,13 @@ class EventDispatcherTest : TestBase() {
 
         val context = listOf(e1, e2, e3, e4)
 
-        dispatcher.dispatch(referenceId, context)
+        dispatcher.dispatch(referenceId, context, listOf(e4))
 
         val produced = eventStore.all().mapNotNull { it.toEvent() }
         assertEquals(1, produced.size)
         assertTrue(produced.first() is DerivedEvent)
         assertTrue(produced.first().metadata.derivedFromId!!.contains(e2.eventId))
     }
-
 
     // --- Test helpers ---
 
@@ -527,5 +474,4 @@ class EventDispatcherTest : TestBase() {
             return null
         }
     }
-
 }

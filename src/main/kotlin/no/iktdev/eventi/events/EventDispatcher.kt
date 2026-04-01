@@ -1,5 +1,6 @@
 package no.iktdev.eventi.events
 
+import kotlinx.coroutines.Job
 import mu.KotlinLogging
 import no.iktdev.eventi.models.DeleteEvent
 import no.iktdev.eventi.models.DispatchResult
@@ -13,14 +14,14 @@ open class EventDispatcher(val eventStore: EventStore) {
 
     private val log = KotlinLogging.logger {}
 
-    open fun dispatch(referenceId: UUID, events: List<Event>) {
-        val deletedEventIds = events.filterIsInstance<DeleteEvent>().map { it.deletedEventId }
+    open fun dispatch(referenceId: UUID, history: List<Event>, newEvents: List<Event>) {
+        val deletedEventIds = history.filterIsInstance<DeleteEvent>().map { it.deletedEventId }
 
-        val candidates = events
+        val candidates = newEvents
             .validEvents(deletedEventIds)
             .replayCandidates()
 
-        val effectiveHistory = events
+        val effectiveHistory = history
             .validEvents(deletedEventIds)
             .filterNot { it is DeleteEvent }
 
