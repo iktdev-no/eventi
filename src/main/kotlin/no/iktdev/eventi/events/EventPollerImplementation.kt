@@ -7,6 +7,7 @@ import no.iktdev.eventi.MyTime
 import no.iktdev.eventi.PollerTraceStore
 import no.iktdev.eventi.lifecycle.CurrentState
 import no.iktdev.eventi.lifecycle.EventState
+import no.iktdev.eventi.lifecycle.ILifecycleStore
 import no.iktdev.eventi.lifecycle.LifecycleStore
 import no.iktdev.eventi.lifecycle.PollerBackoff
 import no.iktdev.eventi.lifecycle.PollerCycleStart
@@ -27,7 +28,7 @@ abstract class EventPollerImplementation(
     private val eventStore: EventStore,
     private val dispatchQueue: SequenceDispatchQueue,
     private val dispatcher: EventDispatcher,
-    private val lifecycleStore: LifecycleStore
+    private val lifecycleStore: ILifecycleStore
 ) {
     private val log = KotlinLogging.logger {}
 

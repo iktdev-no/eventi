@@ -3,6 +3,7 @@ package no.iktdev.eventi.events
 import kotlinx.coroutines.Job
 import mu.KotlinLogging
 import no.iktdev.eventi.MyTime
+import no.iktdev.eventi.lifecycle.ILifecycleStore
 import no.iktdev.eventi.lifecycle.LifecycleStore
 import no.iktdev.eventi.lifecycle.ListenerFatalError
 import no.iktdev.eventi.lifecycle.ListenerResult
@@ -14,7 +15,7 @@ import no.iktdev.eventi.registry.EventListenerRegistry
 import no.iktdev.eventi.stores.EventStore
 import java.util.UUID
 
-open class EventDispatcher(val eventStore: EventStore, private val lifecycleStore: LifecycleStore) {
+open class EventDispatcher(val eventStore: EventStore, private val lifecycleStore: ILifecycleStore) {
 
     private val log = KotlinLogging.logger {}
 

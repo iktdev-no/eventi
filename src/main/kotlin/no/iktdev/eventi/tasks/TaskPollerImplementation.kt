@@ -4,6 +4,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.time.delay
 import mu.KotlinLogging
 import no.iktdev.eventi.MyTime
+import no.iktdev.eventi.lifecycle.ILifecycleStore
 import no.iktdev.eventi.lifecycle.LifecycleStore
 import no.iktdev.eventi.lifecycle.LifecycleTaskReporter
 import no.iktdev.eventi.lifecycle.TaskListenerFatalError
@@ -23,7 +24,7 @@ import java.time.Duration
 
 abstract class TaskPollerImplementation(
     private val taskStore: TaskStore,
-    private val lifecycleStore: LifecycleStore,
+    private val lifecycleStore: ILifecycleStore,
     private val reporterFactory: (Task) -> TaskReporter,
 ) {
     private val log = KotlinLogging.logger {}

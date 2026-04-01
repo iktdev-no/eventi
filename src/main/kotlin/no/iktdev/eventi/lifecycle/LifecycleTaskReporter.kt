@@ -9,7 +9,7 @@ import java.util.UUID
 
 class LifecycleTaskReporter(
     private val delegate: TaskReporter,
-    private val lifecycleStore: LifecycleStore
+    private val lifecycleStore: ILifecycleStore
 ) : TaskReporter {
     override fun markClaimed(taskId: UUID, workerId: String): Result {
         lifecycleStore.add(

@@ -20,10 +20,10 @@ enum class TimelineCategory {
     ERROR
 }
 
-fun LifecycleStore.timeline(): List<TimelineEntry> =
+fun ILifecycleStore.timeline(): List<TimelineEntry> =
     getAll().map { it.toTimeline() }.sortedBy { it.timestamp }
 
-fun LifecycleStore.timelineForRef(ref: UUID): List<TimelineEntry> =
+fun ILifecycleStore.timelineForRef(ref: UUID): List<TimelineEntry> =
     getForRef(ref).map { it.toTimeline() }.sortedBy { it.timestamp }
 
 

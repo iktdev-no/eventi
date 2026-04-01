@@ -3,12 +3,19 @@ package no.iktdev.eventi.lifecycle
 import java.util.ArrayDeque
 import java.util.UUID
 
-class LifecycleStore(private val capacity: Int = 50_000) {
+interface ILifecycleStore {
+    fun add(entry: LifecycleEntry)
+    fun getAll(): List<LifecycleEntry>
+    fun getForRef(ref: UUID): List<LifecycleEntry>
+}
+
+
+class LifecycleStore(private val capacity: Int = 50_000): ILifecycleStore {
 
     private val buffer = ArrayDeque<LifecycleEntry>(capacity)
 
     @Synchronized
-    fun add(entry: LifecycleEntry) {
+    override fun add(entry: LifecycleEntry) {
         if (buffer.size >= capacity) {
             buffer.removeFirst()
         }
@@ -16,11 +23,11 @@ class LifecycleStore(private val capacity: Int = 50_000) {
     }
 
     @Synchronized
-    fun getAll(): List<LifecycleEntry> =
+    override fun getAll(): List<LifecycleEntry> =
         buffer.toList()
 
     @Synchronized
-    fun getForRef(ref: UUID): List<LifecycleEntry> =
+    override fun getForRef(ref: UUID): List<LifecycleEntry> =
         buffer.filter {
             when (it) {
                 is RefFiltered -> it.ref == ref

@@ -12,6 +12,7 @@ import no.iktdev.eventi.lifecycle.DispatchExceptionEntry
 import no.iktdev.eventi.lifecycle.DispatchQueueAcquired
 import no.iktdev.eventi.lifecycle.DispatchQueueReleased
 import no.iktdev.eventi.lifecycle.DispatchQueueSkipped
+import no.iktdev.eventi.lifecycle.ILifecycleStore
 import no.iktdev.eventi.lifecycle.LifecycleStore
 import no.iktdev.eventi.lifecycle.RefDispatchCompleted
 import no.iktdev.eventi.lifecycle.RefDispatchStarted
@@ -22,7 +23,7 @@ import java.util.concurrent.ConcurrentHashMap
 open class SequenceDispatchQueue(
     private val maxConcurrency: Int = 8,
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default + SupervisorJob()),
-    private val lifecycleStore: LifecycleStore
+    private val lifecycleStore: ILifecycleStore
 ) {
     private val semaphore = Semaphore(maxConcurrency)
     private val active = ConcurrentHashMap.newKeySet<UUID>()
