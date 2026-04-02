@@ -160,27 +160,14 @@ abstract class EventPollerImplementation(
      * Returnerer true hvis vi faktisk dispatch’et noe.
      */
     private fun processReference(ref: UUID, eventsForRef: List<PersistedEvent>): Boolean {
-        // (Neste steg: vi legger inn Lifecycle her også)
         val (refSeenAt, refSeenId) = refWatermark[ref] ?: (Instant.EPOCH to 0L)
 
-        // Filter new events using (timestamp, id) ordering
         val newForRef = eventsForRef.filter { ev ->
             ev.persistedAt > refSeenAt ||
                     (ev.persistedAt == refSeenAt && ev.id >= refSeenId)
         }
 
-        lifecycleStore.add(
-            RefFiltered(
-                timestamp = MyTime.utcNow(),
-                ref = ref,
-                seenCount = eventsForRef.size,
-                newCount = newForRef.size,
-                watermarkBefore = refSeenAt to refSeenId
-            )
-        )
-
         if (newForRef.isEmpty()) {
-            log.debug { "🧊 No new events for $ref since ($refSeenAt, id=$refSeenId)" }
             lifecycleStore.add(
                 RefDispatchSkipped(
                     timestamp = MyTime.utcNow(),
@@ -191,11 +178,10 @@ abstract class EventPollerImplementation(
             return false
         }
 
-        // If ref is busy, advance watermark but skip dispatch
+        val fullLog = eventStore.getPersistedEventsFor(ref)
+        val history = fullLog.mapNotNull { it.toEvent() }
+
         if (dispatchQueue.isProcessing(ref)) {
-            log.debug {
-                log.debug { "⏳ $ref is busy — deferring ${newForRef.size} events" }
-            }
             lifecycleStore.add(
                 RefBusy(
                     timestamp = MyTime.utcNow(),
@@ -206,71 +192,54 @@ abstract class EventPollerImplementation(
             return false
         }
 
-        // Fetch full sequence for dispatch
-        val fullLog = eventStore.getPersistedEventsFor(ref)
-        if (fullLog.isEmpty()) {
-            log.warn { "⚠️ No events found for $ref when fetching full log (should not happen)" }
-            lifecycleStore.add(
-                RefDispatchSkipped(
-                    timestamp = Instant.now(),
-                    ref = ref,
-                    reason = "Full log empty for ref"
+        // Domain-events (kandidater)
+        val newDomainEvents = newForRef
+            .mapNotNull { it.toEvent() }
+            .filterNot { it is SignalEvent }
+
+        // ⭐ CASE 1: Kun signaler → trigge dispatch av siste domain-event
+        if (newDomainEvents.isEmpty()) {
+
+            val lastDomain = history
+                .filterNot { it is SignalEvent }
+                .maxByOrNull { it.metadata.created }
+
+            if (lastDomain == null) {
+                lifecycleStore.add(
+                    RefDispatchSkipped(
+                        timestamp = MyTime.utcNow(),
+                        ref = ref,
+                        reason = "Only signals present and no domain history"
+                    )
                 )
+                return false
+            }
+
+            dispatchQueue.dispatch(
+                ref,
+                history = history,
+                newEvents = listOf(lastDomain),
+                dispatcher = dispatcher
             )
-            return false
+
+            return true
         }
 
-        val history = fullLog.mapNotNull { it.toEvent() }
-        val newEvents = newForRef.mapNotNull { it.toEvent() }
+        // ⭐ CASE 2: Vanlige domain-events → normal dispatch
+        dispatchQueue.dispatch(ref, history, newDomainEvents, dispatcher)
 
-        lifecycleStore.add(
-            RefDispatchStarted(
-                timestamp = MyTime.utcNow(),
-                ref = ref,
-                historyCount = history.size,
-                newCount = newEvents.size
-            )
-        )
-        log.debug { "🚀 Dispatching ${history.size} events for $ref (new=${newEvents.size})" }
-
-        dispatchQueue.dispatch(ref, history, newEvents, dispatcher)
-
-        lifecycleStore.add(
-            RefDispatchCompleted(
-                timestamp = MyTime.utcNow(),
-                ref = ref
-            )
-        )
-
-        // Update watermark for this reference
+        // Flytt watermark basert på domain-events
         val maxDomainEvent = fullLog
             .filter { it.toEvent() !is SignalEvent }
             .maxWithOrNull(compareBy({ it.persistedAt }, { it.id }))
 
-        if (maxDomainEvent == null) {
-            // Ingen domenedata å flytte watermark til → men vi har prosessert signaler
-            return true
+        if (maxDomainEvent != null) {
+            updateWatermark(ref, maxDomainEvent.persistedAt to maxDomainEvent.id)
         }
 
-
-
-        val before = refWatermark[ref] ?: (Instant.EPOCH to 0L)
-        val after = maxDomainEvent.persistedAt to maxDomainEvent.id
-
-        updateWatermark(ref, after)
-
-        lifecycleStore.add(
-            RefWatermarkUpdated(
-                timestamp = MyTime.utcNow(),
-                ref = ref,
-                before = before,
-                after = after
-            )
-        )
-
-        log.debug { "⏩ Updated watermark for $ref → (${maxDomainEvent.persistedAt}, id=${maxDomainEvent.id})" }
         return true
     }
+
 
     /**
      * Oppdaterer global scan hint basert på per-ref watermarks.

@@ -9,6 +9,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.test.advanceUntilIdle
+import no.iktdev.eventi.EventDispatcherTest
 import no.iktdev.eventi.EventDispatcherTest.DerivedEvent
 import no.iktdev.eventi.EventDispatcherTest.OtherEvent
 import no.iktdev.eventi.EventDispatcherTest.TriggerEvent
@@ -409,6 +410,80 @@ class EventPollerImplementationTest : TestBase() {
             setOf(eA.eventId, eB.eventId),
             dispatched.toSet(),
             "Polleren skal ikke hoppe over referanser med identisk timestamp"
+        )
+    }
+
+    @Test
+    @DisplayName("""
+    Når kun SignalEvent ankommer etter et domain-event
+    Hvis pollOnce kjøres
+    Så skal polleren trigge dispatch av siste domain-event (ikke signalet)
+""")
+    fun pollerTriggersLastDomainEventWhenOnlySignalsArrive() = runTest {
+
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val queue = TestSequenceDispatchQueue(maxConcurrency = 1, dispatcher = testDispatcher, lifecycleStore)
+
+        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher, lifecycleStore) {}
+
+        EventTypeRegistry.wipe()
+        EventListenerRegistry.wipe()
+        eventStore.clear()
+
+        // Registrer domain + signal
+        EventTypeRegistry.register(
+            listOf(
+                TriggerEvent::class.java,   // domain-event
+                EventDispatcherTest.OnHoldSignalEvent::class.java  // signal-event
+            )
+        )
+
+        val refId = UUID.randomUUID()
+
+        val dispatched = mutableListOf<Event>()
+        val done = CompletableDeferred<Unit>()
+
+        // Lytter som registrerer hva som faktisk blir dispatch'et
+        EventListenerRegistry.registerListener(
+            object : EventListener() {
+                override fun onEvent(event: Event, history: List<Event>): Event? {
+                    dispatched += event
+                    done.complete(Unit)
+                    return null
+                }
+            }
+        )
+
+        // Først: et domain-event
+        val domain = TriggerEvent().usingReferenceId(refId)
+        eventStore.persist(domain)
+
+        // Første poll → dispatch domain-event
+        poller.pollOnce()
+        advanceUntilIdle()
+
+        // Tøm listen for å isolere neste dispatch
+        dispatched.clear()
+
+        // Deretter: et signal-event (skal ikke være kandidat)
+        val signal = EventDispatcherTest.OnHoldSignalEvent().usingReferenceId(refId)
+        eventStore.persist(signal)
+
+        // Andre poll → signal skal trigge dispatch av *domain*, ikke seg selv
+        poller.pollOnce()
+        advanceUntilIdle()
+
+        done.await()
+
+        assertEquals(
+            2,
+            dispatched.size,
+            "SignalEvent skal trigge dispatch av siste domain-event, ikke seg selv"
+        )
+
+        assertTrue(
+            dispatched.all { it is TriggerEvent },
+            "SignalEvent skal ikke være kandidat — kun siste domain-event skal dispatch'es"
         )
     }
 

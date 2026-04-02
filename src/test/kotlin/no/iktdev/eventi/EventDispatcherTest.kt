@@ -34,6 +34,7 @@ class EventDispatcherTest : TestBase() {
 
     class DerivedEvent : Event()
     class TriggerEvent : Event()
+    class OnHoldSignalEvent: SignalEvent()
     class OtherEvent : Event()
     class DummyEvent : Event()
 
@@ -47,7 +48,8 @@ class EventDispatcherTest : TestBase() {
                 DerivedEvent::class.java,
                 TriggerEvent::class.java,
                 OtherEvent::class.java,
-                DummyEvent::class.java
+                DummyEvent::class.java,
+                OnHoldSignalEvent::class.java
             )
         )
     }
