@@ -14,7 +14,13 @@ import no.iktdev.eventi.lifecycle.PollerCycleStart
 import no.iktdev.eventi.lifecycle.PollerFetched
 import no.iktdev.eventi.lifecycle.PollerGrouped
 import no.iktdev.eventi.lifecycle.PollerUpdatedLastSeen
+import no.iktdev.eventi.lifecycle.RefBusy
+import no.iktdev.eventi.lifecycle.RefDispatchCompleted
+import no.iktdev.eventi.lifecycle.RefDispatchSkipped
+import no.iktdev.eventi.lifecycle.RefDispatchStarted
+import no.iktdev.eventi.lifecycle.RefFiltered
 import no.iktdev.eventi.lifecycle.RefState
+import no.iktdev.eventi.lifecycle.RefWatermarkUpdated
 import no.iktdev.eventi.models.store.PersistedEvent
 import no.iktdev.eventi.serialization.ZDS.toEvent
 import no.iktdev.eventi.stores.EventStore
@@ -162,8 +168,25 @@ abstract class EventPollerImplementation(
                     (ev.persistedAt == refSeenAt && ev.id > refSeenId)
         }
 
+        lifecycleStore.add(
+            RefFiltered(
+                timestamp = MyTime.utcNow(),
+                ref = ref,
+                seenCount = eventsForRef.size,
+                newCount = newForRef.size,
+                watermarkBefore = refSeenAt to refSeenId
+            )
+        )
+
         if (newForRef.isEmpty()) {
             log.debug { "🧊 No new events for $ref since ($refSeenAt, id=$refSeenId)" }
+            lifecycleStore.add(
+                RefDispatchSkipped(
+                    timestamp = MyTime.utcNow(),
+                    ref = ref,
+                    reason = "No new events since watermark"
+                )
+            )
             return false
         }
 
@@ -172,29 +195,73 @@ abstract class EventPollerImplementation(
             log.debug {
                 log.debug { "⏳ $ref is busy — deferring ${newForRef.size} events" }
             }
+            lifecycleStore.add(
+                RefBusy(
+                    timestamp = MyTime.utcNow(),
+                    ref = ref,
+                    deferredCount = newForRef.size
+                )
+            )
             return false
         }
 
         // Fetch full sequence for dispatch
         val fullLog = eventStore.getPersistedEventsFor(ref)
+        if (fullLog.isEmpty()) {
+            log.warn { "⚠️ No events found for $ref when fetching full log (should not happen)" }
+            lifecycleStore.add(
+                RefDispatchSkipped(
+                    timestamp = Instant.now(),
+                    ref = ref,
+                    reason = "Full log empty for ref"
+                )
+            )
+            return false
+        }
+
         val history = fullLog.mapNotNull { it.toEvent() }
         val newEvents = newForRef.mapNotNull { it.toEvent() }
 
+        lifecycleStore.add(
+            RefDispatchStarted(
+                timestamp = MyTime.utcNow(),
+                ref = ref,
+                historyCount = history.size,
+                newCount = newEvents.size
+            )
+        )
         log.debug { "🚀 Dispatching ${history.size} events for $ref (new=${newEvents.size})" }
 
         dispatchQueue.dispatch(ref, history, newEvents, dispatcher)
 
-        // Update watermark for this reference
-        val maxEvent = fullLog.maxWith(
-            compareBy({ it.persistedAt }, { it.id })
+        lifecycleStore.add(
+            RefDispatchCompleted(
+                timestamp = MyTime.utcNow(),
+                ref = ref
+            )
         )
 
-        val newWatermarkAt = maxEvent.persistedAt
-        val newWatermarkId = maxEvent.id
+        // Update watermark for this reference
+        val maxEvent = fullLog.maxWithOrNull(
+            compareBy({ it.persistedAt }, { it.id })
+        ) ?: return true
 
-        updateWatermark(ref, newWatermarkAt to newWatermarkId)
 
-        log.debug { "⏩ Updated watermark for $ref → ($newWatermarkAt, id=$newWatermarkId)" }
+        val before = refWatermark[ref] ?: (Instant.EPOCH to 0L)
+        val after = maxEvent.persistedAt to maxEvent.id
+
+        updateWatermark(ref, after)
+
+        lifecycleStore.add(
+            RefWatermarkUpdated(
+                timestamp = MyTime.utcNow(),
+                ref = ref,
+                before = before,
+                after = after
+            )
+        )
+
+        log.debug { "⏩ Updated watermark for $ref → (${maxEvent.persistedAt}, id=${maxEvent.id})" }
         return true
     }
 

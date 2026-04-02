@@ -71,6 +71,13 @@ data class RefWatermarkUpdated(
     val after: Pair<Instant, Long>
 ) : LifecycleEntry
 
+data class RefDispatchSkipped(
+    override val timestamp: Instant,
+    val ref: UUID,
+    val reason: String
+) : LifecycleEntry
+
+
 /* ----------------------------- DISPATCH QUEUE ----------------------------- */
 
 data class DispatchQueueAcquired(

@@ -86,6 +86,10 @@ fun LifecycleEntry.toTimeline(): TimelineEntry {
             "Watermark updated → ${after.first} / ${after.second}", this
         )
 
+        is RefDispatchSkipped -> TimelineEntry(
+            timestamp, ref, TimelineCategory.REF,
+            "Dispatch skipped empty", this
+        )
 
         /* -------------------- DISPATCH QUEUE -------------------- */
 
