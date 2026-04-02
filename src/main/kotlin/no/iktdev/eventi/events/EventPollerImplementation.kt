@@ -21,6 +21,7 @@ import no.iktdev.eventi.lifecycle.RefDispatchStarted
 import no.iktdev.eventi.lifecycle.RefFiltered
 import no.iktdev.eventi.lifecycle.RefState
 import no.iktdev.eventi.lifecycle.RefWatermarkUpdated
+import no.iktdev.eventi.models.SignalEvent
 import no.iktdev.eventi.models.store.PersistedEvent
 import no.iktdev.eventi.serialization.ZDS.toEvent
 import no.iktdev.eventi.stores.EventStore
@@ -165,7 +166,7 @@ abstract class EventPollerImplementation(
         // Filter new events using (timestamp, id) ordering
         val newForRef = eventsForRef.filter { ev ->
             ev.persistedAt > refSeenAt ||
-                    (ev.persistedAt == refSeenAt && ev.id > refSeenId)
+                    (ev.persistedAt == refSeenAt && ev.id >= refSeenId)
         }
 
         lifecycleStore.add(
@@ -242,13 +243,19 @@ abstract class EventPollerImplementation(
         )
 
         // Update watermark for this reference
-        val maxEvent = fullLog.maxWithOrNull(
-            compareBy({ it.persistedAt }, { it.id })
-        ) ?: return true
+        val maxDomainEvent = fullLog
+            .filter { it.toEvent() !is SignalEvent }
+            .maxWithOrNull(compareBy({ it.persistedAt }, { it.id }))
+
+        if (maxDomainEvent == null) {
+            // Ingen domenedata å flytte watermark til → men vi har prosessert signaler
+            return true
+        }
+
 
 
         val before = refWatermark[ref] ?: (Instant.EPOCH to 0L)
-        val after = maxEvent.persistedAt to maxEvent.id
+        val after = maxDomainEvent.persistedAt to maxDomainEvent.id
 
         updateWatermark(ref, after)
 
@@ -261,7 +268,7 @@ abstract class EventPollerImplementation(
             )
         )
 
-        log.debug { "⏩ Updated watermark for $ref → (${maxEvent.persistedAt}, id=${maxEvent.id})" }
+        log.debug { "⏩ Updated watermark for $ref → (${maxDomainEvent.persistedAt}, id=${maxDomainEvent.id})" }
         return true
     }
 
