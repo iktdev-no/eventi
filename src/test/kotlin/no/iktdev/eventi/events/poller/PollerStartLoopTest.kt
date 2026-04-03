@@ -485,7 +485,7 @@ class PollerStartLoopTest : TestBase() {
 
         // Fixen skal flytte lastSeenTime forbi eventen
         assertThat<Instant>(poller.lastSeenTime)
-            .isEqualTo(t(50))
+            .isEqualTo(t(50).plusNanos(1))
 
         // Andre poll: nå skal polleren IKKE spinne
         val before = poller.lastSeenTime
