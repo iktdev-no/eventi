@@ -117,9 +117,9 @@ abstract class EventPollerImplementation(
 
         // Move global scan hint forward to avoid livelock
         val maxSeenThisRound = newPersisted.maxOfOrNull { it.persistedAt }
-        if (maxSeenThisRound != null && maxSeenThisRound > lastSeenTime) {
+        if (maxSeenThisRound != null && maxSeenThisRound >= lastSeenTime) {
             val before = lastSeenTime
-            lastSeenTime = maxSeenThisRound
+            lastSeenTime = maxSeenThisRound.plusNanos(1)
 
             // Lifecycle: global lastSeenTime flyttet
             lifecycleStore.add(
