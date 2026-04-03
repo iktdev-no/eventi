@@ -1,26 +1,18 @@
 package no.iktdev.eventi.events
 
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.time.delay
 import mu.KotlinLogging
 import no.iktdev.eventi.MyTime
-import no.iktdev.eventi.PollerTraceStore
-import no.iktdev.eventi.lifecycle.CurrentState
 import no.iktdev.eventi.lifecycle.EventState
 import no.iktdev.eventi.lifecycle.ILifecycleStore
-import no.iktdev.eventi.lifecycle.LifecycleStore
 import no.iktdev.eventi.lifecycle.PollerBackoff
 import no.iktdev.eventi.lifecycle.PollerCycleStart
 import no.iktdev.eventi.lifecycle.PollerFetched
 import no.iktdev.eventi.lifecycle.PollerGrouped
 import no.iktdev.eventi.lifecycle.PollerUpdatedLastSeen
 import no.iktdev.eventi.lifecycle.RefBusy
-import no.iktdev.eventi.lifecycle.RefDispatchCompleted
 import no.iktdev.eventi.lifecycle.RefDispatchSkipped
-import no.iktdev.eventi.lifecycle.RefDispatchStarted
-import no.iktdev.eventi.lifecycle.RefFiltered
 import no.iktdev.eventi.lifecycle.RefState
-import no.iktdev.eventi.lifecycle.RefWatermarkUpdated
 import no.iktdev.eventi.models.SignalEvent
 import no.iktdev.eventi.models.store.PersistedEvent
 import no.iktdev.eventi.serialization.ZDS.toEvent
@@ -28,8 +20,6 @@ import no.iktdev.eventi.stores.EventStore
 import java.time.Duration
 import java.time.Instant
 import java.util.UUID
-import kotlin.text.compareTo
-import kotlin.time.Duration.Companion.milliseconds
 
 abstract class EventPollerImplementation(
     private val eventStore: EventStore,
@@ -119,7 +109,7 @@ abstract class EventPollerImplementation(
         val maxSeenThisRound = newPersisted.maxOfOrNull { it.persistedAt }
         if (maxSeenThisRound != null && maxSeenThisRound >= lastSeenTime) {
             val before = lastSeenTime
-            lastSeenTime = maxSeenThisRound.plusNanos(1)
+            lastSeenTime = maxSeenThisRound
 
             // Lifecycle: global lastSeenTime flyttet
             lifecycleStore.add(
@@ -135,7 +125,7 @@ abstract class EventPollerImplementation(
     }
 
     private suspend fun fetchNewPersistedEvents(scanFrom: Instant) =
-        eventStore.getPersistedEventsAfter(scanFrom)
+        eventStore.getPersistedEventsAtOrAfter(scanFrom)
 
     private suspend fun handleEmptyPoll() {
         // Lifecycle: backoff når ingen events ble funnet

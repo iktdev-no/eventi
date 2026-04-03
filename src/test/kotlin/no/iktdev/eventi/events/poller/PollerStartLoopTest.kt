@@ -447,7 +447,7 @@ class PollerStartLoopTest : TestBase() {
 
         // Fake EventStore som alltid returnerer samme event
         val fakeStore = object : EventStore {
-            override fun getPersistedEventsAfter(timestamp: Instant): List<PersistedEvent> {
+            override fun getPersistedEventsAtOrAfter(timestamp: Instant): List<PersistedEvent> {
                 // Alltid returner én event som ligger før watermark
                 return listOf(
                     PersistedEvent(
@@ -485,7 +485,7 @@ class PollerStartLoopTest : TestBase() {
 
         // Fixen skal flytte lastSeenTime forbi eventen
         assertThat<Instant>(poller.lastSeenTime)
-            .isEqualTo(t(50).plusNanos(1))
+            .isEqualTo(t(50))
 
         // Andre poll: nå skal polleren IKKE spinne
         val before = poller.lastSeenTime

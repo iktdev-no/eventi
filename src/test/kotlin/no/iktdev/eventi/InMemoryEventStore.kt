@@ -11,7 +11,7 @@ class InMemoryEventStore : EventStore {
     private val persisted = mutableListOf<PersistedEvent>()
     private var nextId = 1L
 
-    override fun getPersistedEventsAfter(timestamp: Instant): List<PersistedEvent> =
+    override fun getPersistedEventsAtOrAfter(timestamp: Instant): List<PersistedEvent> =
         persisted
             .filter { it.persistedAt > timestamp }
             .sortedWith(compareBy<PersistedEvent> { it.persistedAt }.thenBy { it.id })

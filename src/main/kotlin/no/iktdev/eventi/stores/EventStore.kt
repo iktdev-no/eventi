@@ -6,7 +6,7 @@ import java.time.Instant
 import java.util.UUID
 
 interface EventStore {
-    fun getPersistedEventsAfter(timestamp: Instant): List<PersistedEvent>
+    fun getPersistedEventsAtOrAfter(timestamp: Instant): List<PersistedEvent>
     fun getPersistedEventsFor(referenceId: UUID): List<PersistedEvent>
     fun persist(event: Event)
 }
