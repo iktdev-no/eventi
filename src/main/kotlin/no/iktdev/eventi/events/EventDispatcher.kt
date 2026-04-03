@@ -22,13 +22,23 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
     open fun dispatch(referenceId: UUID, history: List<Event>, newEvents: List<Event>) {
         val deletedEventIds = history.filterIsInstance<DeleteEvent>().map { it.deletedEventId }
 
-        val candidates = newEvents
+        var candidates = newEvents
             .validEvents(deletedEventIds)
             .replayCandidates()
+
+// ⭐ Fallback: kun når ALLE nye events er signaler
+        if (candidates.isEmpty() && newEvents.all { it is SignalEvent }) {
+            candidates = history
+                .validEvents(deletedEventIds)
+                .replayCandidates()
+        }
+
 
         val effectiveHistory = history
             .validEvents(deletedEventIds)
             .filterNot { it is DeleteEvent }
+
+        //val producedEvents: MutableList<Event> = mutableListOf()
 
         EventListenerRegistry.getListeners().forEach { listener ->
             for (candidate in candidates) {
@@ -40,6 +50,7 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
                         validateReferenceId(result, listener)
                         validateDerivation(result, candidate, effectiveHistory, listener)
                         eventStore.persist(result)
+                        //producedEvents.add(result)
                         lifecycleStore.add(
                             ListenerResult(
                                 timestamp = MyTime.utcNow(),
@@ -115,6 +126,8 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
                 }
             }
         }
+
+        // producedEvents.forEach { eventStore.persist(it) }
     }
 
     private fun UUID.short(): String = this.toString().substring(0, 8)

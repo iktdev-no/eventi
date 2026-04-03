@@ -154,7 +154,7 @@ abstract class EventPollerImplementation(
 
         val newForRef = eventsForRef.filter { ev ->
             ev.persistedAt > refSeenAt ||
-                    (ev.persistedAt == refSeenAt && ev.id >= refSeenId)
+                    (ev.persistedAt == refSeenAt && ev.id > refSeenId)
         }
 
         if (newForRef.isEmpty()) {
@@ -182,53 +182,22 @@ abstract class EventPollerImplementation(
             return false
         }
 
-        // Domain-events (kandidater)
-        val newDomainEvents = newForRef
-            .mapNotNull { it.toEvent() }
-            .filterNot { it is SignalEvent }
+        // ⭐ Send ALLE nye events (domain + signal) til dispatch
+        val newEvents = newForRef.mapNotNull { it.toEvent() }
+        dispatchQueue.dispatch(ref, history, newEvents, dispatcher)
 
-        // ⭐ CASE 1: Kun signaler → trigge dispatch av siste domain-event
-        if (newDomainEvents.isEmpty()) {
-
-            val lastDomain = history
-                .filterNot { it is SignalEvent }
-                .maxByOrNull { it.metadata.created }
-
-            if (lastDomain == null) {
-                lifecycleStore.add(
-                    RefDispatchSkipped(
-                        timestamp = MyTime.utcNow(),
-                        ref = ref,
-                        reason = "Only signals present and no domain history"
-                    )
-                )
-                return false
-            }
-
-            dispatchQueue.dispatch(
-                ref,
-                history = history,
-                newEvents = listOf(lastDomain),
-                dispatcher = dispatcher
-            )
-
-            return true
-        }
-
-        // ⭐ CASE 2: Vanlige domain-events → normal dispatch
-        dispatchQueue.dispatch(ref, history, newDomainEvents, dispatcher)
-
-        // Flytt watermark basert på domain-events
-        val maxDomainEvent = fullLog
+        // ⭐ Flytt watermark KUN basert på domain-events
+        val lastDomainPersisted = newForRef
             .filter { it.toEvent() !is SignalEvent }
             .maxWithOrNull(compareBy({ it.persistedAt }, { it.id }))
 
-        if (maxDomainEvent != null) {
-            updateWatermark(ref, maxDomainEvent.persistedAt to maxDomainEvent.id)
+        if (lastDomainPersisted != null) {
+            updateWatermark(ref, lastDomainPersisted.persistedAt to lastDomainPersisted.id)
         }
 
         return true
     }
+
 
 
     /**

@@ -1,6 +1,7 @@
 package no.iktdev.eventi.events
 
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
@@ -17,6 +18,7 @@ import no.iktdev.eventi.lifecycle.LifecycleStore
 import no.iktdev.eventi.lifecycle.RefDispatchCompleted
 import no.iktdev.eventi.lifecycle.RefDispatchStarted
 import no.iktdev.eventi.models.Event
+import org.jetbrains.annotations.VisibleForTesting
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 
@@ -30,7 +32,8 @@ open class SequenceDispatchQueue(
 
     fun activeRefs(): Set<UUID> = active.toSet()
 
-    fun _scope(): CoroutineScope {
+    @VisibleForTesting
+    internal fun scope(): CoroutineScope {
         return scope
     }
 
@@ -62,7 +65,7 @@ open class SequenceDispatchQueue(
         )
         log.debug {"▶️ Starting dispatch for $referenceId with ${history.size} events"}
 
-        return scope.launch {
+        return scope.launch(start = CoroutineStart.UNDISPATCHED) {
             try {
                 // Venter på semaphore
                 lifecycleStore.add(

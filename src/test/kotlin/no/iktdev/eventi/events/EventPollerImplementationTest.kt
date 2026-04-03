@@ -8,6 +8,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.job
 import kotlinx.coroutines.test.advanceUntilIdle
 import no.iktdev.eventi.EventDispatcherTest
 import no.iktdev.eventi.EventDispatcherTest.DerivedEvent
@@ -21,6 +22,7 @@ import no.iktdev.eventi.registry.EventListenerRegistry
 import no.iktdev.eventi.registry.EventTypeRegistry
 import no.iktdev.eventi.testUtil.TestSequenceDispatchQueue
 import no.iktdev.eventi.testUtil.wipe
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertFalse
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -415,78 +417,124 @@ class EventPollerImplementationTest : TestBase() {
 
     @Test
     @DisplayName("""
-    Når kun SignalEvent ankommer etter et domain-event
-    Hvis pollOnce kjøres
-    Så skal polleren trigge dispatch av siste domain-event (ikke signalet)
+        Når kun SignalEvent ankommer etter et domain-event
+        Hvis pollOnce kjøres
+        Så skal polleren trigge dispatch av siste domain-event (ikke signalet)
 """)
     fun pollerTriggersLastDomainEventWhenOnlySignalsArrive() = runTest {
 
         val testDispatcher = StandardTestDispatcher(testScheduler)
         val queue = TestSequenceDispatchQueue(maxConcurrency = 1, dispatcher = testDispatcher, lifecycleStore)
-
         val poller = object : EventPollerImplementation(eventStore, queue, dispatcher, lifecycleStore) {}
 
         EventTypeRegistry.wipe()
         EventListenerRegistry.wipe()
         eventStore.clear()
 
-        // Registrer domain + signal
         EventTypeRegistry.register(
             listOf(
-                TriggerEvent::class.java,   // domain-event
-                EventDispatcherTest.OnHoldSignalEvent::class.java  // signal-event
+                TriggerEvent::class.java,
+                EventDispatcherTest.OnHoldSignalEvent::class.java
             )
         )
 
         val refId = UUID.randomUUID()
-
         val dispatched = mutableListOf<Event>()
-        val done = CompletableDeferred<Unit>()
 
-        // Lytter som registrerer hva som faktisk blir dispatch'et
-        EventListenerRegistry.registerListener(
-            object : EventListener() {
-                override fun onEvent(event: Event, history: List<Event>): Event? {
-                    dispatched += event
-                    done.complete(Unit)
-                    return null
-                }
+        // auto-registrert lytter
+        object : EventListener() {
+            override fun onEvent(event: Event, history: List<Event>): Event? {
+                dispatched += event
+                return null
             }
-        )
+        }
 
-        // Først: et domain-event
-        val domain = TriggerEvent().usingReferenceId(refId)
-        eventStore.persist(domain)
+        // Første domain-event
+        eventStore.persist(TriggerEvent().usingReferenceId(refId))
 
-        // Første poll → dispatch domain-event
         poller.pollOnce()
-        advanceUntilIdle()
+        queue.awaitIdle()
 
-        // Tøm listen for å isolere neste dispatch
-        dispatched.clear()
 
-        // Deretter: et signal-event (skal ikke være kandidat)
-        val signal = EventDispatcherTest.OnHoldSignalEvent().usingReferenceId(refId)
-        eventStore.persist(signal)
+        // Signal-event
+        eventStore.persist(EventDispatcherTest.OnHoldSignalEvent().usingReferenceId(refId))
 
-        // Andre poll → signal skal trigge dispatch av *domain*, ikke seg selv
         poller.pollOnce()
-        advanceUntilIdle()
+        queue.awaitIdle()
 
-        done.await()
-
-        assertEquals(
-            2,
-            dispatched.size,
-            "SignalEvent skal trigge dispatch av siste domain-event, ikke seg selv"
-        )
-
-        assertTrue(
-            dispatched.all { it is TriggerEvent },
-            "SignalEvent skal ikke være kandidat — kun siste domain-event skal dispatch'es"
-        )
+        assertEquals(2, dispatched.size)
+        assertTrue(dispatched.all { it is TriggerEvent })
     }
 
+
+
+    suspend fun SequenceDispatchQueue.awaitIdle() {
+        while (true) {
+            val jobs = scope().coroutineContext.job.children.toList()
+            if (jobs.isEmpty()) return
+            jobs.forEach { it.join() }
+        }
+    }
+
+
+
+
+    @Test
+    @DisplayName("""
+    Når flere events har identisk persistedAt
+    Hvis polleren kjøres to ganger
+    Så skal polleren ikke redispatch'e siste event (ingen double-dispatch)
+""")
+    fun pollerDoesNotDoubleDispatchLastEventWithIdenticalTimestamps() = runTest {
+        val testDispatcher = StandardTestDispatcher(testScheduler)
+        val queue = TestSequenceDispatchQueue(maxConcurrency = 1, dispatcher = testDispatcher, lifecycleStore)
+
+        val poller = object : EventPollerImplementation(eventStore, queue, dispatcher, lifecycleStore) {
+            public override fun updateWatermark(ref: UUID, value: Pair<Instant, Long>) {
+                super.updateWatermark(ref, value)
+            }
+        }
+
+        EventTypeRegistry.wipe()
+        EventListenerRegistry.wipe()
+        eventStore.clear()
+
+        EventTypeRegistry.register(listOf(TriggerEvent::class.java))
+
+
+        val refId = UUID.randomUUID()
+        val dispatched = mutableListOf<UUID>()
+
+        val listener =  object : EventListener() {
+            override fun onEvent(event: Event, history: List<Event>): Event? {
+                dispatched += event.eventId
+                return null
+            }
+        }
+
+        val ts = MyTime.utcNow()
+
+        // Tre events med IDENTISK timestamp (samme som i produksjon)
+        repeat(3) {
+            eventStore.persistAt(TriggerEvent().usingReferenceId(refId), ts)
+        }
+
+        // Første poll: alle tre dispatches
+        poller.pollOnce()
+        advanceUntilIdle()
+
+        assertEquals(3, dispatched.size, "Første poll skal dispatch'e alle tre events")
+
+        // Andre poll: watermark + id > skal hindre redispatch
+        poller.pollOnce()
+        advanceUntilIdle()
+
+        assertEquals(
+            3,
+            dispatched.size,
+            "Polleren skal ikke redispatch'e siste event når persistedAt er identisk"
+        )
+    }
 
 
 }
