@@ -5,6 +5,7 @@ package no.iktdev.eventi.events
 import kotlinx.coroutines.*
 import kotlinx.coroutines.test.*
 import no.iktdev.eventi.InMemoryEventStore
+import no.iktdev.eventi.lifecycle.ILifecycleStore
 import no.iktdev.eventi.lifecycle.LifecycleStore
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
@@ -13,11 +14,12 @@ import java.util.UUID
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Metadata
 import no.iktdev.eventi.registry.EventTypeRegistry
+import no.iktdev.eventi.stores.EventStore
 import org.junit.jupiter.api.DisplayName
 import java.time.Instant
 import java.util.concurrent.ConcurrentHashMap
 
-class FakeDispatchQueue(
+open class FakeDispatchQueue(
     private val scope: CoroutineScope,
     private val lifecycleStore: LifecycleStore
 ) : SequenceDispatchQueue(8, scope, lifecycleStore) {
@@ -75,7 +77,22 @@ class RunSimulationTestTest {
     private lateinit var testDispatcher: TestDispatcher
     private lateinit var scope: CoroutineScope
     private lateinit var queue: FakeDispatchQueue
-    private lateinit var poller: EventPollerImplementation
+    private lateinit var poller: TestExtendedEventPollerImplementation
+
+    class TestExtendedEventPollerImplementation(
+        eventStore: EventStore,
+        dispatchQueue: SequenceDispatchQueue,
+        dispatcher: EventDispatcher,
+        lifecycleStore: ILifecycleStore
+    ) : EventPollerImplementation(eventStore, dispatchQueue, dispatcher, lifecycleStore) {
+        override suspend fun start() = error("Do not call start() in tests")
+        fun getWatermark(referenceId: UUID): Pair<Instant, Long>? {
+            return refWatermark[referenceId]
+        }
+        fun overrideWatermark(referenceId: UUID, timestamp: Instant, id: Long) {
+            refWatermark[referenceId] = timestamp to id
+        }
+    }
 
     @BeforeEach
     fun setup() {
@@ -85,9 +102,7 @@ class RunSimulationTestTest {
         scope = CoroutineScope(testDispatcher)
         queue = FakeDispatchQueue(scope, lifecycleStore)
         EventTypeRegistry.register(TestEvent::class.java)
-        poller = object : EventPollerImplementation(store, queue, dispatcher, lifecycleStore) {
-            override suspend fun start() = error("Do not call start() in tests")
-        }
+        poller = TestExtendedEventPollerImplementation(store, queue, dispatcher, lifecycleStore)
     }
 
     private fun persistEvent(ref: UUID) {
@@ -139,6 +154,58 @@ class RunSimulationTestTest {
         // Etter livelock-fixen skal lastSeenTime være *etter* eventet
         assertThat(poller.lastSeenTime).isGreaterThanOrEqualTo(t)
     }
+
+    @Test
+    @DisplayName("""
+Når watermark peker på et event
+Hvis polleren ser samme event igjen (samme timestamp og id)
+Så skal polleren ikke livelock'e
+""")
+    fun pollerLivelockReproduction() = runTest(testDispatcher) {
+        val queue = object : FakeDispatchQueue(scope, lifecycleStore) {
+            override fun isProcessing(referenceId: UUID): Boolean {
+                return true
+            }
+
+            override fun dispatch(
+                referenceId: UUID,
+                history: List<Event>,
+                newEvents: List<Event>,
+                dispatcher: EventDispatcher
+            ): Job {
+                return scope.launch { /* no-op */ }
+            }
+        }
+        val poller = TestExtendedEventPollerImplementation(store, queue, dispatcher, lifecycleStore)
+
+
+        val ref = UUID.randomUUID()
+
+        // Event at T
+        val t = Instant.parse("2026-04-08T23:57:44Z")
+        val event = TestEvent().withReference(ref)
+        store.persistAt(event, t)
+
+        // Finn faktisk ID som ble brukt av InMemoryEventStore
+        val persisted = store.getPersistedEventsFor(ref).single()
+        val actualId = persisted.id
+
+        // Simuler at polleren allerede har prosessert eventet
+        poller.overrideWatermark(ref, t, actualId)
+
+        // lastSeenTime står også på T (som i produksjon)
+        poller.lastSeenTime = t
+
+        // Nå: poller skal hente eventet igjen, men filtrere det bort → livelock
+        poller.pollOnce()
+        advanceUntilIdle()
+
+        // Etter fix: lastSeenTime skal være > T
+        assertThat(poller.lastSeenTime)
+            .describedAs("BUG: poller livelocker når watermark peker forbi eksisterende events")
+            .isGreaterThan(t)
+    }
+
 
     @Test
     @DisplayName("""

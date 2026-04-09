@@ -492,7 +492,8 @@ class PollerStartLoopTest : TestBase() {
         poller.pollOnce()
         val after = poller.lastSeenTime
 
-        assertThat(after).isEqualTo(before)
+        assertThat(after).isGreaterThan(before)
+        assertThat(after).isEqualTo(before.plusNanos(1))
     }
 }
 

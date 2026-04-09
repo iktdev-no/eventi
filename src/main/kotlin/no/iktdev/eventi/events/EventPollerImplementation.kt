@@ -107,19 +107,31 @@ abstract class EventPollerImplementation(
 
         // Move global scan hint forward to avoid livelock
         val maxSeenThisRound = newPersisted.maxOfOrNull { it.persistedAt }
-        if (maxSeenThisRound != null && maxSeenThisRound >= lastSeenTime) {
+        if (maxSeenThisRound != null) {
             val before = lastSeenTime
-            lastSeenTime = maxSeenThisRound
 
-            // Lifecycle: global lastSeenTime flyttet
-            lifecycleStore.add(
-                PollerUpdatedLastSeen(
-                    timestamp = MyTime.utcNow(),
-                    before = before,
-                    after = lastSeenTime
+            if (maxSeenThisRound > lastSeenTime) {
+                lastSeenTime = maxSeenThisRound
+            } else if (!anyProcessed && maxSeenThisRound == lastSeenTime) {
+                log.warn {
+                    "⚠️ Livelock prevention triggered: " +
+                            "No refs processed but events seen at $lastSeenTime. " +
+                            "Bumping lastSeenTime by 1ns to avoid re-reading same events."
+                }
+                lastSeenTime = lastSeenTime.plusNanos(1)
+            }
+
+            if (lastSeenTime != before) {
+                lifecycleStore.add(
+                    PollerUpdatedLastSeen(
+                        timestamp = MyTime.utcNow(),
+                        before = before,
+                        after = lastSeenTime
+                    )
                 )
-            )
+            }
         }
+
 
         updateGlobalWatermark(anyProcessed)
     }

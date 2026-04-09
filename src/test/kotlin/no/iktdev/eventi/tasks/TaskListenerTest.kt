@@ -367,13 +367,23 @@ class TaskListenerTest {
         val reporter = FakeReporter()
         listener.accept(FakeTask().newReferenceId(), reporter)
 
+
         errorLogged.await()
-        listener.currentJob?.join()
+        listener.awaitIdle()
 
         assertNull(listener.currentJob)
         assertNull(listener.currentTask)
         assertNull(listener.heartbeatRunner)
     }
+
+    suspend fun TaskListener.awaitIdle() {
+        // Vent på hovedjobben
+        currentJob?.join()
+
+        // Vent på heartbeat-runner hvis den finnes
+        heartbeatRunner?.join()
+    }
+
 
     // ---------------------------------------------------------
     // 8 — onCancelled kalles når jobben kanselleres

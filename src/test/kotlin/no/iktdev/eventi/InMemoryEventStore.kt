@@ -13,7 +13,7 @@ class InMemoryEventStore : EventStore {
 
     override fun getPersistedEventsAtOrAfter(timestamp: Instant): List<PersistedEvent> =
         persisted
-            .filter { it.persistedAt > timestamp }
+            .filter { it.persistedAt >= timestamp }
             .sortedWith(compareBy<PersistedEvent> { it.persistedAt }.thenBy { it.id })
 
     override fun getPersistedEventsFor(referenceId: UUID): List<PersistedEvent> =
