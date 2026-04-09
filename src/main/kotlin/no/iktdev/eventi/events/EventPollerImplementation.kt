@@ -19,6 +19,7 @@ import no.iktdev.eventi.serialization.ZDS.toEvent
 import no.iktdev.eventi.stores.EventStore
 import java.time.Duration
 import java.time.Instant
+import java.time.temporal.ChronoUnit
 import java.util.UUID
 
 abstract class EventPollerImplementation(
@@ -118,7 +119,7 @@ abstract class EventPollerImplementation(
                             "No refs processed but events seen at $lastSeenTime. " +
                             "Bumping lastSeenTime by 1ns to avoid re-reading same events."
                 }
-                lastSeenTime = lastSeenTime.plusNanos(1)
+                lastSeenTime = lastSeenTime.plus(1, ChronoUnit.MICROS)
             }
 
             if (lastSeenTime != before) {
@@ -137,7 +138,7 @@ abstract class EventPollerImplementation(
     }
 
     private suspend fun fetchNewPersistedEvents(scanFrom: Instant) =
-        eventStore.getPersistedEventsAtOrAfter(scanFrom)
+        eventStore.getPersistedEventsAfter(scanFrom)
 
     private suspend fun handleEmptyPoll() {
         // Lifecycle: backoff når ingen events ble funnet

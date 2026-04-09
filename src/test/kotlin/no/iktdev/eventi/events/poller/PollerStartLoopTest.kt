@@ -23,6 +23,7 @@ import java.time.Instant
 import java.util.UUID
 import org.assertj.core.api.Assertions.assertThat
 import java.time.Duration
+import java.time.temporal.ChronoUnit
 
 
 @ExperimentalCoroutinesApi
@@ -447,7 +448,7 @@ class PollerStartLoopTest : TestBase() {
 
         // Fake EventStore som alltid returnerer samme event
         val fakeStore = object : EventStore {
-            override fun getPersistedEventsAtOrAfter(timestamp: Instant): List<PersistedEvent> {
+            override fun getPersistedEventsAfter(timestamp: Instant): List<PersistedEvent> {
                 // Alltid returner én event som ligger før watermark
                 return listOf(
                     PersistedEvent(
@@ -493,7 +494,7 @@ class PollerStartLoopTest : TestBase() {
         val after = poller.lastSeenTime
 
         assertThat(after).isGreaterThan(before)
-        assertThat(after).isEqualTo(before.plusNanos(1))
+        assertThat(after).isEqualTo(before.plus(1, ChronoUnit.MICROS))
     }
 }
 
