@@ -81,7 +81,7 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
                             result = "Rejected: ${e.message}"
                         )
                     )
-                    onDispatched(candidate, listener, DispatchResult.Rejected, e.message)
+                    onDispatched(candidate, listener, DispatchResult.Skipped, e.message)
                 } catch (e: SoftDispatchException.SkipListenerException) {
                     lifecycleStore.add(
                         ListenerResult(
