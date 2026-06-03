@@ -205,6 +205,14 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
         val parents = producedEvent.metadata.derivedFromId ?: emptyList()
         if (parents.isEmpty()) return
 
+        // 🚫 NYT TILLEGG: Forhindre at et event derivere fra samme type
+        if (producedEvent::class == sourceEvent::class) {
+            throw IllegalStateException(
+                "Invalid derivation: ${producedEvent::class.simpleName} cannot derive from same event type. " +
+                        "This would create a recursive event chain (spinlock) with no natural termination."
+            )
+        }
+
         // Lytteren har eksplisitt opt-in → da er alt i historikken lov
         if (listener.allowDerivativeOnHistoricalEvent()) {
             // Men vi kan fortsatt nekte Signal/Delete som parent hvis du vil

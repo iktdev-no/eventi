@@ -462,6 +462,67 @@ class EventDispatcherTest : TestBase() {
         assertTrue(produced.first().metadata.derivedFromId!!.contains(e2.eventId))
     }
 
+    @Test
+    @DisplayName(
+        """
+    Når en event forsøker å derivere fra en event av samme type
+    Så skal dispatcheren kaste IllegalStateException
+    """
+    )
+    fun shouldFailWhenDerivingFromSameEventType() {
+        val dispatcher = EventDispatcher(eventStore, lifecycleStore)
+        val referenceId = UUID.randomUUID()
+
+        val parent = TriggerEvent().usingReferenceId(referenceId)
+
+        // Lytter som prøver å lage TriggerEvent av TriggerEvent
+        object : EventListener() {
+            override fun onEvent(event: Event, history: List<Event>): Event? {
+                return TriggerEvent().derivedOf(parent)
+            }
+        }
+
+        assertThrows(IllegalStateException::class.java) {
+            dispatcher.dispatch(referenceId, listOf(parent), listOf(parent))
+        }
+    }
+
+    @Test
+    @DisplayName(
+        """
+    Når historikken inneholder flere events av samme type
+    Hvis derivation skjer fra en annen type
+    Så skal dispatch fullføre uten feil
+    """
+    )
+    fun shouldAllowMultipleSameTypeEventsWhenNotUsedAsParent() {
+        val dispatcher = EventDispatcher(eventStore, lifecycleStore)
+        val referenceId = UUID.randomUUID()
+
+        val t1 = TriggerEvent().usingReferenceId(referenceId)
+        val t2 = TriggerEvent().usingReferenceId(referenceId)
+        val other = OtherEvent().usingReferenceId(referenceId)
+
+        object : EventListener() {
+            override fun allowDerivativeOnHistoricalEvent() = true
+
+            override fun onEvent(event: Event, history: List<Event>): Event? {
+                if (event == t2) {
+                    return DerivedEvent().derivedOf(other)
+                }
+                return null
+            }
+        }
+
+        dispatcher.dispatch(referenceId, listOf(t1, t2, other), listOf(t2))
+
+        val produced = eventStore.all().mapNotNull { it.toEvent() }
+        assertEquals(1, produced.size)
+        assertTrue(produced.first() is DerivedEvent)
+    }
+
+
+
     // --- Test helpers ---
 
     class ProducingListener : EventListener() {
