@@ -21,9 +21,14 @@ abstract class Event {
         metadata = Metadata().derivedFromEventId(derivedFromIds.toSet())
     }
 
-    fun derivedOf(vararg event: Event) = self<Event>().apply {
-        referenceId = event.first().referenceId
-        metadata = Metadata().derivedFromEventId(*event.map { it.eventId }.toTypedArray())
+    fun derivedOf(vararg events: Event) =
+        derivedOf(events.toList())
+
+
+    fun derivedOf(events: List<Event>) = self<Event>().apply {
+        referenceId = events.first().referenceId
+        metadata = Metadata()
+            .derivedFromEventId(events.map { it.eventId }.toSet())
     }
 
     fun newReferenceId() = self<Event>().apply {
