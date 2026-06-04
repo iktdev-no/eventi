@@ -20,25 +20,23 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
     private val log = KotlinLogging.logger {}
 
     open fun dispatch(referenceId: UUID, history: List<Event>, newEvents: List<Event>) {
-        val deletedEventIds = history.filterIsInstance<DeleteEvent>().map { it.deletedEventId }
-
-        var candidates = newEvents
-            .validEvents(deletedEventIds)
-            .replayCandidates()
-
-// ⭐ Fallback: kun når ALLE nye events er signaler
-        if (candidates.isEmpty() && newEvents.all { it is SignalEvent }) {
-            candidates = history
-                .validEvents(deletedEventIds)
-                .replayCandidates()
-        }
-
+        val deletedEventIds = history
+            .filterIsInstance<DeleteEvent>()
+            .map { it.deletedEventId }
 
         val effectiveHistory = history
             .validEvents(deletedEventIds)
             .filterNot { it is DeleteEvent }
 
-        //val producedEvents: MutableList<Event> = mutableListOf()
+        var candidates = newEvents
+            .validEvents(deletedEventIds)
+            .replayCandidates()
+
+        // Fallback: kun når alle nye er signaler → bruk historikk som “nytt”
+        if (candidates.isEmpty() && newEvents.all { it is SignalEvent }) {
+            candidates = effectiveHistory
+                .replayCandidates()
+        }
 
         EventListenerRegistry.getListeners().forEach { listener ->
 
@@ -189,8 +187,14 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
     }
 
     fun List<Event>.validEvents(deletedEventIds: List<UUID>): List<Event> {
-        return this.filter {it.eventId !in deletedEventIds }
+        return this.filter { event ->
+            val id = event.eventId
+            val parents = event.metadata.derivedFromId ?: emptyList()
+
+            id !in deletedEventIds && parents.none { it in deletedEventIds }
+        }
     }
+
 
     /**
      * Validates that referenceId (a lateinit) is initialized.

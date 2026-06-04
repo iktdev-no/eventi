@@ -521,6 +521,140 @@ class EventDispatcherTest : TestBase() {
         assertTrue(produced.first() is DerivedEvent)
     }
 
+    @Test
+    @DisplayName("Når en event slettes direkte skal den ikke være kandidat eller i historikk")
+    fun directDeleteShouldRemoveEvent() {
+        val ref = UUID.randomUUID()
+        val dispatcher = EventDispatcher(eventStore, lifecycleStore)
+
+        val received = mutableListOf<Event>()
+
+        object : EventListener() {
+            override fun onEvent(event: Event, history: List<Event>): Event? {
+                received += event
+                return null
+            }
+        }
+
+        val a = TriggerEvent().usingReferenceId(ref)
+        val del = object : DeleteEvent(a.eventId) {}.usingReferenceId(ref)
+
+        dispatcher.dispatch(ref, listOf(a, del), listOf(a, del))
+
+        assertFalse(received.contains(a))
+        assertTrue(received.contains(del))
+    }
+
+    @Test
+    @DisplayName("Når en event slettes skal alle dens derived events også fjernes")
+    fun deleteShouldRemoveDerivedChain() {
+        val ref = UUID.randomUUID()
+        val dispatcher = EventDispatcher(eventStore, lifecycleStore)
+
+        val received = mutableListOf<Event>()
+
+        object : EventListener() {
+            override fun onEvent(event: Event, history: List<Event>): Event? {
+                received += event
+                return null
+            }
+        }
+
+        val a = TriggerEvent().usingReferenceId(ref)
+        val b = DerivedEvent().derivedOf(a).usingReferenceId(ref)
+        val c = DerivedEvent().derivedOf(b).usingReferenceId(ref)
+
+        val del = object : DeleteEvent(b.eventId) {}.usingReferenceId(ref)
+
+        dispatcher.dispatch(ref, listOf(a, b, c, del), listOf(a, b, c, del))
+
+        assertTrue(received.contains(a))
+        assertFalse(received.contains(b))
+        assertFalse(received.contains(c))
+    }
+
+    @Test
+    @DisplayName("Når root-event slettes skal hele derivation-treet fjernes")
+    fun deleteRootShouldRemoveEntireTree() {
+        val ref = UUID.randomUUID()
+        val dispatcher = EventDispatcher(eventStore, lifecycleStore)
+
+        val received = mutableListOf<Event>()
+
+        object : EventListener() {
+            override fun onEvent(event: Event, history: List<Event>): Event? {
+                received += event
+                return null
+            }
+        }
+
+        val a = TriggerEvent().usingReferenceId(ref)
+        val b = DerivedEvent().derivedOf(a).usingReferenceId(ref)
+        val c = DerivedEvent().derivedOf(a).usingReferenceId(ref)
+
+        val del = object : DeleteEvent(a.eventId) {}.usingReferenceId(ref)
+
+        dispatcher.dispatch(ref, listOf(a, b, c, del), listOf(a, b, c, del))
+
+        assertFalse(received.contains(a))
+        assertFalse(received.contains(b))
+        assertFalse(received.contains(c))
+        assertTrue(received.contains(del))
+    }
+
+    @Test
+    @DisplayName("Når derived-event slettes skal parent bli replay-kandidat igjen")
+    fun deleteDerivedShouldReplayParent() {
+        val ref = UUID.randomUUID()
+        val dispatcher = EventDispatcher(eventStore, lifecycleStore)
+
+        val received = mutableListOf<Event>()
+
+        object : EventListener() {
+            override fun onEvent(event: Event, history: List<Event>): Event? {
+                received += event
+                return null
+            }
+        }
+
+        val a = TriggerEvent().usingReferenceId(ref)
+        val b = DerivedEvent().derivedOf(a).usingReferenceId(ref)
+        val del = object : DeleteEvent(b.eventId) {}.usingReferenceId(ref)
+
+        dispatcher.dispatch(ref, listOf(a, b, del), listOf(a, b, del))
+
+        assertTrue(received.contains(a)) // replayed
+        assertFalse(received.contains(b))
+    }
+
+    @Test
+    @DisplayName("SignalEvent skal ikke være kandidat selv om den slettes")
+    fun deleteSignalShouldNotMakeItCandidate() {
+        val ref = UUID.randomUUID()
+        val dispatcher = EventDispatcher(eventStore, lifecycleStore)
+
+        val received = mutableListOf<Event>()
+
+        class S : SignalEvent()
+
+        EventTypeRegistry.register(listOf(S::class.java))
+
+        object : EventListener() {
+            override fun onEvent(event: Event, history: List<Event>): Event? {
+                received += event
+                return null
+            }
+        }
+
+        val sig = S().usingReferenceId(ref)
+        val del = object : DeleteEvent(sig.eventId) {}.usingReferenceId(ref)
+
+        dispatcher.dispatch(ref, listOf(sig, del), listOf(sig, del))
+
+        assertFalse(received.contains(sig))
+        assertTrue(received.contains(del))
+    }
+
 
 
     // --- Test helpers ---
