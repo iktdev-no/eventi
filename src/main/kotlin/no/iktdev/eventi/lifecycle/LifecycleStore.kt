@@ -7,12 +7,21 @@ interface ILifecycleStore {
     fun add(entry: LifecycleEntry)
     fun getAll(): List<LifecycleEntry>
     fun getForRef(ref: UUID): List<LifecycleEntry>
+    fun hasAccepted(ref: UUID, listenerName: String): Boolean
 }
 
 
 class LifecycleStore(private val capacity: Int = 50_000): ILifecycleStore {
 
     private val buffer = ArrayDeque<LifecycleEntry>(capacity)
+
+    override fun hasAccepted(ref: UUID, listenerName: String): Boolean =
+        getForRef(ref).any {
+            it is ListenerResult &&
+                    it.listener == listenerName &&
+                    it.result == "Accepted"
+        }
+
 
     @Synchronized
     override fun add(entry: LifecycleEntry) {

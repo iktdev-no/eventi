@@ -41,6 +41,14 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
         //val producedEvents: MutableList<Event> = mutableListOf()
 
         EventListenerRegistry.getListeners().forEach { listener ->
+
+            if (listener.allowDerivativeOnHistoricalEvent() &&
+                lifecycleStore.hasAccepted(referenceId, listener::class.java.simpleName)
+            ) {
+                log.debug { "🔁 Listener ${listener::class.simpleName} already accepted for $referenceId → skipping further candidates" }
+                return@forEach
+            }
+
             for (candidate in candidates) {
                 //log.debug("Evaluating candidate: ${candidate::class.simpleName} for listener ${listener::class.simpleName}")
                 try {
@@ -61,8 +69,8 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
                         )
                         onDispatched(candidate, listener, DispatchResult.Accepted)
                         if (listener.allowDerivativeOnHistoricalEvent()) {
-                            log.debug { "⏹️ Listener ${listener::class.simpleName} requested historical derivation → stopping dispatch early" }
-                            return
+                            log.debug { "⏹️ Listener ${listener::class.simpleName} requested historical derivation → adding listener to accepted list" }
+                            break
                         }
                     } else {
                         lifecycleStore.add(
