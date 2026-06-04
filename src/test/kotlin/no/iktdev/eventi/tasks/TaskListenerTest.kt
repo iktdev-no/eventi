@@ -75,7 +75,7 @@ class TaskListenerTest {
                 }
 
                 yield()
-                return object : Event() {}
+                return object : Event() {}.newReferenceId()
             }
         }
 
@@ -112,7 +112,7 @@ class TaskListenerTest {
 
             override fun createIncompleteStateTaskEvent(
                 task: Task, status: TaskStatus, exception: Exception?
-            ) = object : Event() {}
+            ) = object : Event() {}.newReferenceId()
 
             override fun supports(task: Task) = true
 
@@ -127,7 +127,7 @@ class TaskListenerTest {
                 }
 
                 allowFinish.await()
-                return object : Event() {}
+                return object : Event() {}.newReferenceId()
             }
         }
 
@@ -190,7 +190,7 @@ class TaskListenerTest {
                 }
 
                 allowFinish.await()
-                return object : Event() {}
+                return object : Event() {}.newReferenceId()
             }
         }
 
@@ -246,7 +246,7 @@ class TaskListenerTest {
                 delay(20)
                 workCompleted.complete(Unit)
 
-                return object : Event() {}
+                return object : Event() {}.newReferenceId()
             }
         }
 
@@ -288,7 +288,7 @@ class TaskListenerTest {
 
             override suspend fun onTask(task: Task): Event? {
                 allowFinish.await()
-                return object : Event() {}
+                return object : Event() {}.newReferenceId()
             }
         }
 
@@ -350,7 +350,7 @@ class TaskListenerTest {
 
             override fun createIncompleteStateTaskEvent(
                 task: Task, status: TaskStatus, exception: Exception?
-            ) = object : Event() {}
+            ) = object : Event() {}.newReferenceId()
 
             override fun supports(task: Task) = true
 
@@ -474,7 +474,7 @@ class TaskListenerTest {
                     finish2.await()
                 }
 
-                return object : Event() {}
+                return object : Event() {}.newReferenceId()
             }
         }
 

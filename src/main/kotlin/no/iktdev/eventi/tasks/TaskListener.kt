@@ -75,6 +75,9 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
         currentJob = getDispatcherForTask(task).launch {
             try {
                 val result = onTask(task)
+                if (result != null) {
+                    validateReferenceId(result, this@TaskListener)
+                }
                 onComplete(task, result)
             } catch (e: CancellationException) {
                 // Dette er en ekte kansellering
@@ -84,7 +87,6 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
             } catch (e: Exception) {
                 // Dette er en faktisk feil
                 onError(task, e)
-
             } finally {
                 heartbeatRunner?.cancel()
                 heartbeatRunner = null
@@ -94,6 +96,18 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
             }
         }
         return true
+    }
+
+    private fun validateReferenceId(event: Event, listener: Any) {
+        try {
+            // Accessing lateinit will throw if not initialized
+            event.referenceId
+        } catch (e: UninitializedPropertyAccessException) {
+            throw IllegalStateException(
+                "Listener ${listener::class.simpleName} attempted to persist " +
+                        "${event::class.simpleName} (${event.eventId}) without initializing referenceId"
+            )
+        }
     }
 
     abstract fun createIncompleteStateTaskEvent(task: Task, status: TaskStatus, exception: Exception? = null): Event
