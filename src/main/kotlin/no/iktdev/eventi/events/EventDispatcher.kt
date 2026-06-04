@@ -25,11 +25,11 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
             .map { it.deletedEventId }
 
         val effectiveHistory = history
-            .validEvents(deletedEventIds)
+            .validEventsRecursive(deletedEventIds)
             .filterNot { it is DeleteEvent }
 
         var candidates = newEvents
-            .validEvents(deletedEventIds)
+            .validEventsRecursive(deletedEventIds)
             .replayCandidates()
 
         // Fallback: kun når alle nye er signaler → bruk historikk som “nytt”
@@ -186,14 +186,40 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
             .filter { it.eventId !in derivedFromIds }
     }
 
-    fun List<Event>.validEvents(deletedEventIds: List<UUID>): List<Event> {
-        return this.filter { event ->
-            val id = event.eventId
-            val parents = event.metadata.derivedFromId ?: emptyList()
+    fun List<Event>.validEventsRecursive(deletedEventIds: List<UUID>): List<Event> {
+        if (deletedEventIds.isEmpty()) return this
 
-            id !in deletedEventIds && parents.none { it in deletedEventIds }
+        // 1. Bygg parent → children map
+        val childrenByParent = this
+            .flatMap { evt ->
+                (evt.metadata.derivedFromId ?: emptyList()).map { parentId ->
+                    parentId to evt.eventId
+                }
+            }
+            .groupBy({ it.first }, { it.second })
+
+        // 2. Finn alle descendants av slettede events
+        val toDelete = mutableSetOf<UUID>()
+        val queue = ArrayDeque<UUID>()
+
+        queue.addAll(deletedEventIds)
+        toDelete.addAll(deletedEventIds)
+
+        while (queue.isNotEmpty()) {
+            val current = queue.removeFirst()
+            val children = childrenByParent[current] ?: emptyList()
+            for (child in children) {
+                if (child !in toDelete) {
+                    toDelete.add(child)
+                    queue.add(child)
+                }
+            }
         }
+
+        // 3. Filtrer bort alle events som er i slettet-treet
+        return this.filter { it.eventId !in toDelete }
     }
+
 
 
     /**
