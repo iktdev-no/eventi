@@ -60,6 +60,10 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
                             )
                         )
                         onDispatched(candidate, listener, DispatchResult.Accepted)
+                        if (listener.allowDerivativeOnHistoricalEvent()) {
+                            log.debug { "⏹️ Listener ${listener::class.simpleName} requested historical derivation → stopping dispatch early" }
+                            return
+                        }
                     } else {
                         lifecycleStore.add(
                             ListenerResult(
