@@ -20,7 +20,7 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
     private val log = KotlinLogging.logger {}
 
     open fun dispatch(referenceId: UUID, history: List<Event>, newEvents: List<Event>) {
-        val deletedEventIds = history
+        val deletedEventIds = (history + newEvents)
             .filterIsInstance<DeleteEvent>()
             .map { it.deletedEventId }
 
@@ -186,10 +186,18 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
             .filter { it.eventId !in derivedFromIds }
     }
 
+    fun List<Event>.validEvents(deletedEventIds: List<UUID>): List<Event> {
+        return this.filter { event ->
+            val id = event.eventId
+            val parents = event.metadata.derivedFromId ?: emptyList()
+
+            id !in deletedEventIds && parents.none { it in deletedEventIds }
+        }
+    }
+
     fun List<Event>.validEventsRecursive(deletedEventIds: List<UUID>): List<Event> {
         if (deletedEventIds.isEmpty()) return this
 
-        // 1. Bygg parent → children map
         val childrenByParent = this
             .flatMap { evt ->
                 (evt.metadata.derivedFromId ?: emptyList()).map { parentId ->
@@ -198,7 +206,6 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
             }
             .groupBy({ it.first }, { it.second })
 
-        // 2. Finn alle descendants av slettede events
         val toDelete = mutableSetOf<UUID>()
         val queue = ArrayDeque<UUID>()
 
@@ -216,9 +223,9 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
             }
         }
 
-        // 3. Filtrer bort alle events som er i slettet-treet
         return this.filter { it.eventId !in toDelete }
     }
+
 
 
 

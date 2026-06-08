@@ -1,5 +1,6 @@
 package no.iktdev.eventi.models
 
+import org.jetbrains.annotations.VisibleForTesting
 import java.util.UUID
 
 @Suppress("UNCHECKED_CAST")
@@ -37,6 +38,21 @@ abstract class Event {
 
     fun usingReferenceId(refId: UUID) = self<Event>().apply {
         referenceId = refId
+    }
+
+    @VisibleForTesting
+    internal fun withEventId(eventId: UUID) = self<Event>().apply {
+        this.eventId = eventId
+    }
+
+    @VisibleForTesting
+    internal fun withEventId(eventId: String) = self<Event>().apply {
+        this.eventId = UUID.fromString(eventId)
+    }
+
+    @VisibleForTesting
+    internal fun withMetadata(metadata: Metadata) = self<Event>().apply {
+        this.metadata = metadata
     }
 }
 

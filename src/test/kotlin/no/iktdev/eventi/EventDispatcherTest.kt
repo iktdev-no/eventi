@@ -10,6 +10,7 @@ import no.iktdev.eventi.registry.EventTypeRegistry
 import no.iktdev.eventi.models.DeleteEvent
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.SignalEvent
+import no.iktdev.eventi.models.Task
 import no.iktdev.eventi.registry.EventListenerRegistry
 import no.iktdev.eventi.registry.TaskTypeRegistry
 import no.iktdev.eventi.testUtil.wipe
@@ -653,6 +654,155 @@ class EventDispatcherTest : TestBase() {
 
         assertFalse(received.contains(sig))
         assertTrue(received.contains(del))
+    }
+
+    @Test
+    @DisplayName("""
+Kompleks sekvens → slett parent → verifiser primær sletting,
+sekundær sletting og korrekt lineage for nye events etter sletting
+""")
+    fun deleteSequenceBasedOnParent() {
+
+        val sequence = mutableListOf<Event>()
+        fun Event.add(): Event { sequence.add(this); return this }
+
+        val ref = UUID.randomUUID()
+        val dispatcher = EventDispatcher(eventStore, lifecycleStore)
+
+        class AStartSequenceEvent : Event()
+        class ARandomSequenceEvent : Event()
+        class ACreateTaskCreatedEvent(val taskId: UUID) : Event()
+        class ACreateTaskResultEvent : Event()
+        class ADummyTask : Task()
+        class ADeleteEvent(override val deletedEventId: UUID) : DeleteEvent(deletedEventId)
+
+        EventTypeRegistry.register(
+            listOf(
+                AStartSequenceEvent::class.java,
+                ARandomSequenceEvent::class.java,
+                ACreateTaskCreatedEvent::class.java,
+                ACreateTaskResultEvent::class.java,
+                ADeleteEvent::class.java
+            )
+        )
+
+        // --- Bygg sekvens ---
+        val start = AStartSequenceEvent()
+            .usingReferenceId(ref)
+            .withEventId(UUID.randomUUID())
+            .add()
+
+        val randomEvents = (1..10).map {
+            ARandomSequenceEvent()
+                .withEventId(UUID.randomUUID())
+                .derivedOf(sequence.last())
+                .add()
+        }
+
+        val task1Created = ACreateTaskCreatedEvent(UUID.randomUUID())
+            .derivedOf(sequence.last())
+            .add()
+
+        val task1 = ADummyTask().usingReferenceId(ref).derivedOf(task1Created)
+        val task1Result = ACreateTaskResultEvent().producedFrom(task1).add()
+
+        val task2Created = ACreateTaskCreatedEvent(UUID.randomUUID())
+            .derivedOf(sequence.last())
+            .add()
+
+        val task2 = ADummyTask().usingReferenceId(ref).derivedOf(task2Created)
+        val task2Result = ACreateTaskResultEvent().producedFrom(task2).add()
+
+        val parentToDelete = randomEvents[5]
+
+        val deleteEvent = ADeleteEvent(parentToDelete.eventId!!)
+            .usingReferenceId(ref)
+
+        // --- Historikk fanges her ---
+        var dispatched: List<Event> = listOf()
+        object : EventListener() {
+            override fun onEvent(event: Event, history: List<Event>): Event? {
+                dispatched = history + event
+                return null
+            }
+        }
+
+        // --- Dispatch ALLE events én og én ---
+        sequence.forEach { evt ->
+            dispatcher.dispatch(
+                ref,
+                dispatched,       // <- dette er historikken
+                listOf(evt)
+            )
+        }
+
+        // --- Dispatch DeleteEvent ---
+        dispatcher.dispatch(
+            ref,
+            dispatched,
+            listOf(deleteEvent)
+        )
+
+        val afterDelete = dispatched
+
+        // --- Primær sletting ---
+        assertFalse(afterDelete.any { it.eventId == parentToDelete.eventId })
+        assertFalse(afterDelete.any { it.metadata.derivedFromId == parentToDelete.eventId })
+
+        assertFalse(afterDelete.any { it.eventId == task1Created.eventId })
+        assertFalse(afterDelete.any { it.eventId == task1Result.eventId })
+        assertFalse(afterDelete.any { it.eventId == task2Created.eventId })
+        assertFalse(afterDelete.any { it.eventId == task2Result.eventId })
+
+        assertTrue(afterDelete.any { it.eventId == start.eventId })
+        randomEvents.take(5).forEach { e ->
+            assertTrue(afterDelete.any { it.eventId == e.eventId })
+        }
+
+        // --- 1. Event som PRØVER å arve fra slettet parent ---
+// --- 1. Event som PRØVER å arve fra slettet parent ---
+        val illegalChild = ARandomSequenceEvent()
+            .withEventId(UUID.randomUUID())
+            .derivedOf(parentToDelete)
+
+        dispatcher.dispatch(
+            ref,
+            afterDelete,
+            listOf(illegalChild)
+        )
+
+        val afterIllegal = dispatched
+
+// Eventen skal IKKE finnes i historikken
+        assertFalse(afterIllegal.any { it.eventId == illegalChild.eventId })
+
+// Historikken skal i praksis være uendret
+        assertEquals(
+            afterDelete.map { it.eventId }.toSet(),
+            afterIllegal.map { it.eventId }.toSet()
+        )
+
+
+        // --- 2. Event som arver fra siste gyldige event ---
+        val lastValid = randomEvents[4]
+
+        val legalChild = ARandomSequenceEvent()
+            .withEventId(UUID.randomUUID())
+            .derivedOf(lastValid)
+
+        dispatcher.dispatch(
+            ref,
+            afterIllegal,
+            listOf(legalChild)
+        )
+
+        val finalHistory = dispatched
+
+        // Denne skal ha korrekt lineage
+        assertTrue(finalHistory.any {
+            it.eventId == legalChild.eventId &&
+                    it.metadata.derivedFromId?.contains(lastValid.eventId) == true
+        })
     }
 
 
