@@ -43,6 +43,8 @@ class EventDispatcherTest : TestBase() {
     fun setup() {
         EventTypeRegistry.wipe()
         EventListenerRegistry.wipe()
+        eventStore.clear()
+
 
         EventTypeRegistry.register(
             listOf(
@@ -54,6 +56,7 @@ class EventDispatcherTest : TestBase() {
             )
         )
     }
+
 
     @Test
     @DisplayName(
@@ -803,6 +806,63 @@ sekundær sletting og korrekt lineage for nye events etter sletting
             it.eventId == legalChild.eventId &&
                     it.metadata.derivedFromId?.contains(lastValid.eventId) == true
         })
+    }
+
+    @Test
+    @DisplayName("SignalEvent sletting fungerer: derived slettes, loose beholdes, targeted slettes")
+    fun signalEventDeletionBehavior() {
+
+        class Start : Event()
+        class Parent : Event()
+        class Sig : SignalEvent()
+        class Del(override val deletedEventId: UUID) : DeleteEvent(deletedEventId)
+
+        EventTypeRegistry.register(listOf(Start::class.java, Parent::class.java, Sig::class.java, Del::class.java))
+
+        val ref = UUID.randomUUID()
+        val dispatcher = EventDispatcher(eventStore, lifecycleStore)
+
+        var dispatched: List<Event> = emptyList()
+
+        // Listener som bygger historikk slik EventDispatcherTest gjør
+        object : EventListener() {
+            override fun onEvent(event: Event, history: List<Event>): Event? {
+                dispatched = history + event
+                return null
+            }
+        }
+
+        // --- Events ---
+        val start = Start().usingReferenceId(ref)
+        val parent = Parent().usingReferenceId(ref).derivedOf(start)
+        val signalDerived = Sig().usingReferenceId(ref).derivedOf(parent)
+        val signalLoose = Sig().usingReferenceId(ref)
+
+        // --- Dispatch input events ---
+        listOf(start, parent, signalDerived, signalLoose).forEach { evt ->
+            dispatcher.dispatch(ref, dispatched, listOf(evt))
+            dispatched = dispatched + evt   // ⭐ NØKKELLINJEN: simuler EventStore-historikk
+        }
+
+        // --- Slett parent → derived signal skal ryke ---
+        val delParent = Del(parent.eventId!!).usingReferenceId(ref)
+        dispatcher.dispatch(ref, dispatched, listOf(delParent))
+        dispatched = dispatched + delParent   // ⭐ må også inn i historikken
+
+        val afterParentDelete = dispatched
+
+        assertFalse(afterParentDelete.any { it.eventId == signalDerived.eventId })
+        assertTrue(afterParentDelete.any { it.eventId == signalLoose.eventId })
+
+        // --- Slett loose signal direkte ---
+        val delLoose = Del(signalLoose.eventId!!).usingReferenceId(ref)
+        dispatcher.dispatch(ref, afterParentDelete, listOf(delLoose))
+        dispatched = dispatched + delLoose   // ⭐ samme her
+
+        val afterLooseDelete = dispatched
+
+        assertFalse(afterLooseDelete.any { it.eventId == signalLoose.eventId })
+        assertTrue(afterLooseDelete.any { it.eventId == start.eventId })
     }
 
 
