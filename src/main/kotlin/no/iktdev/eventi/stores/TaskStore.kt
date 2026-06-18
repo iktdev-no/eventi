@@ -17,6 +17,17 @@ interface TaskStore {
     fun heartbeat(taskId: UUID): Boolean
     fun markConsumed(taskId: UUID, status: TaskStatus): Boolean
     fun releaseExpiredTasks()
+    fun resetTaskById(taskId: UUID): Boolean
+
+    /**
+     * Required to perform a rollback if one or more fails
+     */
+    fun resetTasksById(taskId: List<UUID>): Boolean
+
+    /**
+     * Required to perform a rollback if one or more fails
+     */
+    fun deleteTasksById(taskId: UUID): Boolean
 
     fun getPendingTasks(): List<PersistedTask>
 }

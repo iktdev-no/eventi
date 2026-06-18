@@ -22,11 +22,11 @@ abstract class Event {
         metadata = Metadata().derivedFromEventId(derivedFromIds.toSet())
     }
 
-    fun derivedOf(vararg events: Event) =
+    open fun derivedOf(vararg events: Event) =
         derivedOf(events.toList())
 
 
-    fun derivedOf(events: List<Event>) = self<Event>().apply {
+    open fun derivedOf(events: List<Event>) = self<Event>().apply {
         referenceId = events.first().referenceId
         metadata = Metadata()
             .derivedFromEventId(events.map { it.eventId }.toSet())
@@ -60,10 +60,48 @@ inline fun <reified T> Event.requireAs(): T {
     return this as? T ?: throw IllegalArgumentException("Expected ${T::class.java.name}, got ${this::class.java.name}")
 }
 
-abstract class DeleteEvent(
+open class DeleteEvent(
     open val deletedEventId: UUID
-) : Event()
+) : Event() {
+    /**
+     * Does only assign referenceId, no real difference between this and "usingReferenceId"
+     */
+    override fun derivedOf(vararg events: Event): Event {
+        this.referenceId = events.first().referenceId
+        return this
+    }
+
+    /**
+     * Does only assign referenceId, no real difference between this and "usingReferenceId"
+     */
+    override fun derivedOf(events: List<Event>): Event {
+        this.referenceId = events.first().referenceId
+        return this
+    }
+}
 
 abstract class SignalEvent(): Event()
 
+abstract class TaskCratedEvent(): Event()
+abstract class SingleTaskCratedEvent(val taskId: UUID): TaskCratedEvent() {
+    override fun derivedOf(vararg events: Event): SingleTaskCratedEvent = apply {
+        referenceId = events.first().referenceId
+        metadata = Metadata()
+            .derivedFromEventId(events.map { it.eventId }.toSet())
+    }
 
+    override fun derivedOf(events: List<Event>): SingleTaskCratedEvent =
+        derivedOf(*events.toTypedArray())
+}
+
+data class MultiTaskIdentity(val taskId: UUID, val identity: String)
+abstract class MultiTaskCreatedEvent(val taskIds: Set<MultiTaskIdentity>): TaskCratedEvent() {
+    override fun derivedOf(vararg events: Event): MultiTaskCreatedEvent = apply {
+        referenceId = events.first().referenceId
+        metadata = Metadata()
+            .derivedFromEventId(events.map { it.eventId }.toSet())
+    }
+
+    override fun derivedOf(events: List<Event>): MultiTaskCreatedEvent =
+        derivedOf(*events.toTypedArray())
+}

@@ -59,6 +59,28 @@ open class InMemoryTaskStore : TaskStore {
         }
     }
 
+    override fun resetTaskById(taskId: UUID): Boolean {
+        tasks.find { it.taskId == taskId }?.let {
+            update(it.copy(claimed = false, consumed = false, status = TaskStatus.Pending))
+            return true
+        }
+        return false
+    }
+
+    override fun resetTasksById(taskId: List<UUID>): Boolean {
+        tasks.filter { it.taskId in taskId }.onEach {
+            update(it.copy(claimed = false, consumed = false, status = TaskStatus.Pending))
+        }
+        return true
+    }
+
+    override fun deleteTasksById(taskId: UUID): Boolean {
+        tasks.find { it.taskId == taskId }?.let {
+            tasks.remove(it)
+        }
+        return true
+    }
+
     override fun getPendingTasks() = tasks.filter { !it.consumed }
 
     private fun update(updated: PersistedTask) {

@@ -26,6 +26,7 @@ abstract class TaskPollerImplementation(
     private val taskStore: TaskStore,
     private val lifecycleStore: ILifecycleStore,
     private val reporterFactory: (Task) -> TaskReporter,
+    private val validatorFactory: TaskValidator? = null,
 ) {
     private val log = KotlinLogging.logger {}
 
@@ -150,7 +151,7 @@ abstract class TaskPollerImplementation(
                 )
 
                 val ok = try {
-                    listener.accept(task, reporter)
+                    listener.accept(task, reporter, validatorFactory)
                 } catch (e: Exception) {
                     lifecycleStore.add(
                         TaskListenerFatalError(

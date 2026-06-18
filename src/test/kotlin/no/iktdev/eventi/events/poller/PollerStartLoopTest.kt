@@ -464,6 +464,12 @@ class PollerStartLoopTest : TestBase() {
 
             override fun getPersistedEventsFor(referenceId: UUID): List<PersistedEvent> = emptyList()
             override fun persist(event: Event) = Unit
+            override fun getEventInSequence(
+                referenceId: UUID,
+                eventId: UUID
+            ): Event? {
+                return null
+            }
         }
 
         val queue = SequenceDispatchQueue(lifecycleStore = lifecycleStore)

@@ -1,8 +1,12 @@
 package no.iktdev.eventi.registry
 
 import no.iktdev.eventi.TypeRegistryImplementation
+import no.iktdev.eventi.models.DeleteEvent
 import no.iktdev.eventi.models.Event
 
 object EventTypeRegistry: TypeRegistryImplementation<Event>() {
+    init {
+        this.register(DeleteEvent::class.java)
+    }
 }
 

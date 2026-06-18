@@ -3,6 +3,7 @@ package no.iktdev.eventi.serialization
 import no.iktdev.eventi.MyTime
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Task
+import no.iktdev.eventi.models.TaskState
 import no.iktdev.eventi.models.store.PersistedEvent
 import no.iktdev.eventi.models.store.PersistedTask
 import no.iktdev.eventi.models.store.TaskStatus
@@ -65,7 +66,15 @@ object ZDS {
                 //error("Unknown task type: $task")
                 return null
             }
-        return gson.fromJson(data, clazz)
+        val task = gson.fromJson(data, clazz)
+        task.state = TaskState(
+            status = this.status,
+            claimed = this.claimed,
+            claimedBy = this.claimedBy,
+            consumed = this.consumed,
+            lastCheckIn = this.lastCheckIn
+        )
+        return task
     }
 
 

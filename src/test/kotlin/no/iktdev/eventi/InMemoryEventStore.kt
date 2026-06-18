@@ -3,6 +3,7 @@ package no.iktdev.eventi
 import no.iktdev.eventi.serialization.ZDS.toPersisted
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.store.PersistedEvent
+import no.iktdev.eventi.serialization.ZDS.toEvent
 import no.iktdev.eventi.stores.EventStore
 import java.time.Instant
 import java.util.UUID
@@ -26,6 +27,13 @@ class InMemoryEventStore : EventStore {
     override fun persist(event: Event) {
         val persistedEvent = event.toPersisted(nextId++, MyTime.utcNow())
         persisted += persistedEvent!!
+    }
+
+    override fun getEventInSequence(
+        referenceId: UUID,
+        eventId: UUID
+    ): Event? {
+        return persisted.find { it.eventId == eventId }?.toEvent()
     }
 
     fun persistAt(event: Event, persistedAt: Instant) {

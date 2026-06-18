@@ -60,7 +60,7 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
         }.also { heartbeatRunner = it }
     }
 
-    override fun accept(task: Task, reporter: TaskReporter): Boolean {
+    override fun accept(task: Task, reporter: TaskReporter, validator: TaskValidator?): Boolean {
         if (isBusy || !supports(task)) return false
         this.reporter = reporter
         currentTask = task
@@ -78,12 +78,15 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
                 if (result != null) {
                     validateReferenceId(result, this@TaskListener)
                 }
+                if (validator?.isTaskValidForResult(task) == false) {
+                    reporter.log(task.taskId, "Task rejected: no longer valid or consistent.")
+                    throw TaskFailedValidationStateException("Task ${task.taskId} not valid or missing")
+                }
                 onComplete(task, result)
             } catch (e: CancellationException) {
                 // Dette er en ekte kansellering
                 onCancelled(task)
                 throw e // viktig: ikke svelg cancellation
-
             } catch (e: Exception) {
                 // Dette er en faktisk feil
                 onError(task, e)
@@ -142,14 +145,15 @@ enum class TaskType {
     MIXED
 }
 
+class TaskFailedValidationStateException(message: String) : Exception(message)
 
 interface TaskListenerImplementation {
     fun supports(task: Task): Boolean
-    fun accept(task: Task, reporter: TaskReporter): Boolean
     suspend fun onTask(task: Task): Event?
     fun onComplete(task: Task, result: Event?)
     fun onError(task: Task, exception: Exception)
     fun onCancelled(task: Task)
+    fun accept(task: Task, reporter: TaskReporter, validator: TaskValidator? = null): Boolean
 }
 
 interface TaskReporter {
@@ -162,6 +166,11 @@ interface TaskReporter {
     fun log(taskId: UUID, message: String)
     fun publishEvent(event: Event): Result
 }
+
+interface TaskValidator {
+    fun isTaskValidForResult(task: Task): Boolean
+}
+
 
 sealed class Result {
     data object Success: Result()

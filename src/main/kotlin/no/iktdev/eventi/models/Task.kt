@@ -6,10 +6,13 @@ import java.util.UUID
 abstract class Task {
     lateinit var referenceId: UUID
         protected set
-    val taskId: UUID = UUID.randomUUID()
+    var taskId: UUID = UUID.randomUUID()
+        protected set
     var metadata: Metadata = Metadata()
         protected set
 
+    var state: TaskState = TaskState()
+        internal set
 
     protected open fun <T : Task> self(): T = this as T
 
@@ -20,6 +23,10 @@ abstract class Task {
     fun derivedOf(event: Event) = self<Task>().apply {
         referenceId = event.referenceId
         metadata = Metadata().derivedFromEventId(event.eventId)
+    }
+
+    internal fun reUseTaskId(taskId: UUID) = self<Task>().apply {
+        this.taskId = taskId
     }
 
     fun usingReferenceId(refId: UUID) = self<Task>().apply {

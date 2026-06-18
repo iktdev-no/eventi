@@ -13,6 +13,7 @@ import no.iktdev.eventi.models.store.TaskStatus
 import org.junit.jupiter.api.Assertions.*
 import org.junit.jupiter.api.DisplayName
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.api.assertThrows
 import java.util.UUID
 import kotlin.time.Duration.Companion.milliseconds
 
@@ -500,4 +501,55 @@ class TaskListenerTest {
 
         assertEquals(2, listener.callCount)
     }
+
+    @Test
+    @DisplayName("Når validator sier at tasken er ugyldig etter onTask, skal onError få TaskFailedValidationStateException og state ryddes")
+    fun validationFailureIsHandledViaOnError() = runTest {
+        var capturedException: Exception? = null
+
+        val listener = object : TaskListener() {
+            override fun getWorkerId() = "worker"
+
+            override fun createIncompleteStateTaskEvent(
+                task: Task, status: TaskStatus, exception: Exception?
+            ) = object : Event() {}
+
+            override fun supports(task: Task) = true
+
+            override suspend fun onTask(task: Task): Event? {
+                // Simulerer normal arbeid med gyldig event
+                return object : Event() {}.newReferenceId()
+            }
+
+            override fun onError(task: Task, exception: Exception) {
+                super.onError(task, exception)
+                capturedException = exception
+            }
+        }
+
+        val validator = object : TaskValidator {
+            override fun isTaskValidForResult(task: Task) = false
+        }
+
+        val reporter = FakeReporter()
+
+        listener.accept(FakeTask().newReferenceId(), reporter, validator)
+
+        // Vent til jobben er ferdig
+        listener.currentJob?.join()
+
+        // Vi forventer at onError har fått riktig exception-type
+        assertNotNull(capturedException)
+        assertTrue(capturedException is TaskFailedValidationStateException)
+
+        // Og at listener er ryddet opp
+        assertNull(listener.currentJob)
+        assertNull(listener.currentTask)
+        assertNull(listener.heartbeatRunner)
+    }
+
+
+
+
+
 }
