@@ -17,7 +17,7 @@ abstract class MultiTaskCreatorEventListener(eventStore: EventStore, taskStore: 
 
     private fun resetTasksAndGetConsumedIds(ids: List<UUID>): List<UUID> {
         val resetStatus = taskStore.resetTasksById(ids)
-        return if (resetStatus) ids else
+        return if (resetStatus.success) ids else
             throw TaskResetInRecoveryException("Failed to reset one or more tasks!")
     }
 
@@ -41,7 +41,7 @@ abstract class MultiTaskCreatorEventListener(eventStore: EventStore, taskStore: 
     fun performUnrecoverableProcedure(triggerEvent: Event, entryEvent: Event, tasks: List<Task>) {
         // Nuke tasks (must succeed)
         val allDeleted = tasks.map { it.taskId }.all { id ->
-            taskStore.deleteTasksById(id)
+            taskStore.deleteTasksById(id).success
         }
 
         if (!allDeleted) {

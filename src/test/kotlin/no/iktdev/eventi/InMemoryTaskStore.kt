@@ -1,5 +1,6 @@
 package no.iktdev.eventi
 
+import no.iktdev.eventi.models.StoreResult
 import no.iktdev.eventi.serialization.ZDS.toPersisted
 import no.iktdev.eventi.models.Task
 import no.iktdev.eventi.models.store.PersistedTask
@@ -67,18 +68,20 @@ open class InMemoryTaskStore : TaskStore {
         return false
     }
 
-    override fun resetTasksById(taskId: List<UUID>): Boolean {
+    override fun resetTasksById(taskId: List<UUID>): StoreResult {
+        var updated: Int = 0
         tasks.filter { it.taskId in taskId }.onEach {
             update(it.copy(claimed = false, consumed = false, status = TaskStatus.Pending))
+            updated++
         }
-        return true
+        return StoreResult(true, updated)
     }
 
-    override fun deleteTasksById(taskId: UUID): Boolean {
+    override fun deleteTasksById(taskId: UUID): StoreResult {
         tasks.find { it.taskId == taskId }?.let {
             tasks.remove(it)
         }
-        return true
+        return StoreResult(true, 1)
     }
 
     override fun getPendingTasks() = tasks.filter { !it.consumed }

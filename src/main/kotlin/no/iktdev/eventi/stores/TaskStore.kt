@@ -1,5 +1,6 @@
 package no.iktdev.eventi.stores
 
+import no.iktdev.eventi.models.StoreResult
 import no.iktdev.eventi.models.Task
 import no.iktdev.eventi.models.store.PersistedTask
 import no.iktdev.eventi.models.store.TaskStatus
@@ -22,12 +23,12 @@ interface TaskStore {
     /**
      * Required to perform a rollback if one or more fails
      */
-    fun resetTasksById(taskId: List<UUID>): Boolean
+    fun resetTasksById(taskId: List<UUID>): StoreResult
 
     /**
      * Required to perform a rollback if one or more fails
      */
-    fun deleteTasksById(taskId: UUID): Boolean
+    fun deleteTasksById(taskId: UUID): StoreResult
 
     fun getPendingTasks(): List<PersistedTask>
 }
