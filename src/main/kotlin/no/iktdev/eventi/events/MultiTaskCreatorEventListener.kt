@@ -178,7 +178,7 @@ abstract class MultiTaskCreatorEventListener(eventStore: EventStore, taskStore: 
 /**
  * Simple ejection that should be handled.
  */
-class EjectException(message: String) : RuntimeException(message)
+open class EjectException(message: String) : RuntimeException(message)
 
 class UnableToPerformRecoveryIllegalTaskStateException(override val message: String? = null) : Exception()
 class UnableToPerformRecoveryIllegalStateException(override val message: String? = null) : Exception()
