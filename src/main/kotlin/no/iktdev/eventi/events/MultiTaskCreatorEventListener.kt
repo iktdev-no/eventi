@@ -135,6 +135,10 @@ abstract class MultiTaskCreatorEventListener(eventStore: EventStore, taskStore: 
         return triggerEvent
     }
 
+    open fun onEjectException(event: Event, history: List<Event>, exception: EjectException): Event {
+        log.error { "Do not call super." }
+        throw exception
+    }
 
     final override fun onEvent(event: Event, history: List<Event>): Event? {
         val deletedEvent = getDeletedResultEvent(event)
@@ -147,7 +151,11 @@ abstract class MultiTaskCreatorEventListener(eventStore: EventStore, taskStore: 
         } else event
 
         // Normal path
-        val tasks = onCreateTask(effectiveEvent, history).ifEmpty { return null }
+        val tasks = try {
+            onCreateTask(effectiveEvent, history).ifEmpty { return null }
+        } catch (e: EjectException) {
+            return onEjectException(event, history, e)
+        }
         val createdEvent = onTasksCreated(effectiveEvent, history, tasks)
 
         tasks.onEach { it.derivedOf(createdEvent) }
@@ -166,6 +174,11 @@ abstract class MultiTaskCreatorEventListener(eventStore: EventStore, taskStore: 
     }
 
 }
+
+/**
+ * Simple ejection that should be handled.
+ */
+class EjectException(message: String) : RuntimeException(message)
 
 class UnableToPerformRecoveryIllegalTaskStateException(override val message: String? = null) : Exception()
 class UnableToPerformRecoveryIllegalStateException(override val message: String? = null) : Exception()
