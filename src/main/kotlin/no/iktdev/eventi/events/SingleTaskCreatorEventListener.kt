@@ -47,6 +47,9 @@ abstract class SingleTaskCreatorEventListener(eventStore: EventStore, taskStore:
     }
 
     final override fun onEvent(event: Event, history: List<Event>): Event? {
+        if (isEventOfMyCreation(event)) {
+            return null
+        }
         val deletedEvent = getDeletedResultEvent(event)
 
         // Recovery path
