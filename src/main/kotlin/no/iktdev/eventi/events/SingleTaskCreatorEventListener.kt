@@ -78,6 +78,7 @@ abstract class SingleTaskCreatorEventListener(eventStore: EventStore, taskStore:
         // Normal path
         val task = onCreateTask(event, history) ?: return null
         val createdTaskEvent = onTaskCreated(event, history, task)
+            .derivedOf(event)
         val taskToPersist = task.derivedOf(createdTaskEvent)
 
         val persisted = taskStore.persist(taskToPersist)

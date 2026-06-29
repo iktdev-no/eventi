@@ -21,6 +21,8 @@ abstract class Task {
     }
 
     fun derivedOf(event: Event) = self<Task>().apply {
+        if (!event.isReferenceIdInitialized())
+            throw IllegalStateException("Incoming event does not contain a defined referenceId")
         referenceId = event.referenceId
         metadata = Metadata().derivedFromEventId(event.eventId)
     }

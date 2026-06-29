@@ -54,7 +54,14 @@ abstract class Event {
     internal fun withMetadata(metadata: Metadata) = self<Event>().apply {
         this.metadata = metadata
     }
+
+    fun isReferenceIdInitialized(): Boolean {
+        return this::referenceId.isInitialized
+    }
 }
+
+
+
 
 inline fun <reified T> Event.requireAs(): T {
     return this as? T ?: throw IllegalArgumentException("Expected ${T::class.java.name}, got ${this::class.java.name}")
@@ -84,10 +91,11 @@ abstract class SignalEvent(): Event()
 
 abstract class TaskCratedEvent(): Event()
 abstract class SingleTaskCratedEvent(val taskId: UUID): TaskCratedEvent() {
-    override fun derivedOf(vararg events: Event): SingleTaskCratedEvent = apply {
-        referenceId = events.first().referenceId
-        metadata = Metadata()
+    override fun derivedOf(vararg events: Event): SingleTaskCratedEvent {
+        this.referenceId = events.first().referenceId
+        this.metadata = Metadata()
             .derivedFromEventId(events.map { it.eventId }.toSet())
+        return this
     }
 
     override fun derivedOf(events: List<Event>): SingleTaskCratedEvent =
@@ -96,10 +104,11 @@ abstract class SingleTaskCratedEvent(val taskId: UUID): TaskCratedEvent() {
 
 data class MultiTaskIdentity(val taskId: UUID, val identity: String)
 abstract class MultiTaskCreatedEvent(val taskIds: Set<MultiTaskIdentity>): TaskCratedEvent() {
-    override fun derivedOf(vararg events: Event): MultiTaskCreatedEvent = apply {
-        referenceId = events.first().referenceId
-        metadata = Metadata()
+    override fun derivedOf(vararg events: Event): MultiTaskCreatedEvent {
+        this.referenceId = events.first().referenceId
+        this.metadata = Metadata()
             .derivedFromEventId(events.map { it.eventId }.toSet())
+        return this
     }
 
     override fun derivedOf(events: List<Event>): MultiTaskCreatedEvent =

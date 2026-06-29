@@ -1,5 +1,6 @@
 package no.iktdev.eventi.events
 
+import com.google.gson.Gson
 import mu.KotlinLogging
 import no.iktdev.eventi.models.DeleteEvent
 import no.iktdev.eventi.models.Event
@@ -140,7 +141,7 @@ abstract class MultiTaskCreatorEventListener(eventStore: EventStore, taskStore: 
         throw exception
     }
 
-    final override fun onEvent(event: Event, history: List<Event>): Event? {
+    override fun onEvent(event: Event, history: List<Event>): Event? {
         if (isEventOfMyCreation(event)) {
             return null
         }
@@ -160,14 +161,23 @@ abstract class MultiTaskCreatorEventListener(eventStore: EventStore, taskStore: 
         } catch (e: EjectException) {
             return onEjectException(event, history, e)
         }
-        val createdEvent = onTasksCreated(effectiveEvent, history, tasks)
 
-        tasks.onEach { it.derivedOf(createdEvent) }
-            .forEach { task ->
+        val createdEvent = onTasksCreated(effectiveEvent, history, tasks)
+            .derivedOf(effectiveEvent)
+
+        val assignedInheritance = tasks.map { it.derivedOf(createdEvent) }
+        assignedInheritance.forEach { task ->
+            try {
+                log.debug("Attempting to presist task {} for event {}", task.javaClass.simpleName, event::class.simpleName)
                 if (!taskStore.persist(task)) {
+                    log.error("Failed to persist task ${Gson().toJson(task)}")
                     throw IllegalStateException("Could not persist task ${task.taskId}")
                 }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                log.error("Failed to persist task ${task.javaClass.simpleName}")
             }
+        }
 
         return createdEvent
     }
