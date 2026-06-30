@@ -51,6 +51,10 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
                 //log.debug("Evaluating candidate: ${candidate::class.simpleName} for listener ${listener::class.simpleName}")
                 try {
                     val result = listener.onEvent(candidate, effectiveHistory)
+                    if (result?.hasReferenceIdBeenSet() == false) {
+                        log.warn { "ReferenceId is missing on produced event when dispatched ${candidate::class.simpleName}, setting this as parent for produced event!" }
+                        result.apply { derivedOf(candidate) }
+                    }
 
                     if (result != null) {
                         validateReferenceId(result, listener)

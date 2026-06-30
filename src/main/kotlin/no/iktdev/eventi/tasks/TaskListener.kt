@@ -7,6 +7,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import mu.KotlinLogging
 import no.iktdev.eventi.models.Event
 import no.iktdev.eventi.models.Progress
 import no.iktdev.eventi.models.Task
@@ -23,6 +24,7 @@ import kotlin.coroutines.cancellation.CancellationException
  * @param reporter An instance of [TaskReporter] for reporting task status and events.
  */
 abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): TaskListenerImplementation {
+    private val log = KotlinLogging.logger {}
 
     init {
         TaskListenerRegistry.registerListener(this)
@@ -75,6 +77,10 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
         currentJob = getDispatcherForTask(task).launch {
             try {
                 val result = onTask(task)
+                if (result?.hasReferenceIdBeenSet() == false) {
+                    log.warn { "ReferenceId is missing on produced result event from task ${task.taskId} (${task.javaClass.simpleName}, derivation and reference id will be inherited from the task" }
+                    result.apply { producedFrom(task) }
+                }
                 if (result != null) {
                     validateReferenceId(result, this@TaskListener)
                 }
