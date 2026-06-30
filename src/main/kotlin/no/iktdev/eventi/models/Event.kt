@@ -55,7 +55,8 @@ abstract class Event {
         this.metadata = metadata
     }
 
-    fun isReferenceIdInitialized(): Boolean {
+
+    internal fun hasReferenceIdBeenSet(): Boolean {
         return this::referenceId.isInitialized
     }
 }
