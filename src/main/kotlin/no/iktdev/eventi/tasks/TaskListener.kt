@@ -77,13 +77,7 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
         currentJob = getDispatcherForTask(task).launch {
             try {
                 val result = onTask(task)
-                if (result?.hasReferenceIdBeenSet() == false) {
-                    log.warn { "ReferenceId is missing on produced result event from task ${task.taskId} (${task.javaClass.simpleName}, derivation and reference id will be inherited from the task" }
-                    result.apply { producedFrom(task) }
-                }
-                if (result != null) {
-                    validateReferenceId(result, this@TaskListener)
-                }
+                setInheritanceIfMissing(task, result)
                 if (validator?.isTaskValidForResult(task) == false) {
                     reporter.log(task.taskId, "Task rejected: no longer valid or consistent.")
                     throw TaskFailedValidationStateException("Task ${task.taskId} not valid or missing")
@@ -119,13 +113,25 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
         }
     }
 
+    private fun setInheritanceIfMissing(incomingTask: Task, producedEvent: Event?) {
+        if (producedEvent?.hasReferenceIdBeenSet() == false) {
+            log.warn { "ReferenceId is missing on produced result event from task ${incomingTask.taskId} (${incomingTask.javaClass.simpleName}, derivation and reference id will be inherited from the task" }
+            producedEvent.apply { producedFrom(incomingTask) }
+        }
+        if (producedEvent != null) {
+            validateReferenceId(producedEvent, this@TaskListener)
+        }
+    }
+
     abstract fun createIncompleteStateTaskEvent(task: Task, status: TaskStatus, exception: Exception? = null): Event
 
     override fun onError(task: Task, exception: Exception) {
         reporter?.log(task.taskId, "Error processing task: ${exception.message}")
         exception.printStackTrace()
         reporter?.markFailed(task.referenceId, task.taskId)
-        reporter!!.publishEvent(createIncompleteStateTaskEvent(task, TaskStatus.Failed, exception))
+        val failureEvent = createIncompleteStateTaskEvent(task, TaskStatus.Failed, exception)
+        setInheritanceIfMissing(task, failureEvent)
+        reporter!!.publishEvent(failureEvent)
     }
 
     override fun onComplete(task: Task, result: Event?) {
@@ -141,7 +147,9 @@ abstract class TaskListener(val taskType: TaskType = TaskType.CPU_INTENSIVE): Ta
         currentJob?.cancel()
         heartbeatRunner?.cancel()
         currentTask = null
-        reporter!!.publishEvent(createIncompleteStateTaskEvent(task, TaskStatus.Cancelled))
+        val canceledEvent = createIncompleteStateTaskEvent(task, TaskStatus.Cancelled)
+        setInheritanceIfMissing(task, canceledEvent)
+        reporter!!.publishEvent(canceledEvent)
     }
 }
 
