@@ -156,19 +156,30 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
         val evtId = event.eventId.short()
         val evtName = event::class.java.simpleName
 
+        // Definerer en tydelig status-tag basert på resultatet
+        val statusTag = when (result) {
+            DispatchResult.Accepted -> "✅ [ACCEPTED]"
+            DispatchResult.Skipped  -> "⏭️ [SKIPPED] "
+            DispatchResult.NoResult -> "⚪ [NO_RES]  "
+            DispatchResult.Rejected -> "❌ [REJECTED]"
+            DispatchResult.Error    -> "🚨 [ERROR]   "
+        }
+
         val msg = buildString {
-            append("[$ref] $listenerName → $evtId $evtName")
+            append("$statusTag [$ref] $listenerName → $evtId $evtName")
             if (!message.isNullOrBlank()) {
-                append("\n  ↳ $message")
+                append("\n    ↳ Reason: $message")
             }
         }
 
-
+        // Logger basert på hvor kritisk hendelsen er
         when (result) {
-            DispatchResult.Accepted,
+            DispatchResult.Accepted ->
+                log.info { msg } // Flyttet til info så du faktisk ser suksessstrømmen
+
             DispatchResult.NoResult,
             DispatchResult.Skipped ->
-                log.debug { msg }
+                log.info { msg } // Info eller debug, avhengig av hvor mye støy du vil ha
 
             DispatchResult.Rejected ->
                 log.warn { msg }
