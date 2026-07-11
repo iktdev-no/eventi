@@ -179,7 +179,7 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
 
             DispatchResult.NoResult,
             DispatchResult.Skipped ->
-                log.info { msg } // Info eller debug, avhengig av hvor mye støy du vil ha
+                log.debug { msg } // Info eller debug, avhengig av hvor mye støy du vil ha
 
             DispatchResult.Rejected ->
                 log.warn { msg }
