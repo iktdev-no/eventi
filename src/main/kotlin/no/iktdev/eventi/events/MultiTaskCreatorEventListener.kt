@@ -143,6 +143,7 @@ abstract class MultiTaskCreatorEventListener(eventStore: EventStore, taskStore: 
 
     override fun onEvent(event: Event, history: List<Event>): Event? {
         if (isEventOfMyCreation(event)) {
+            log.debug("Received an event I have created, ${event::class.simpleName}")
             return null
         }
 
@@ -150,14 +151,20 @@ abstract class MultiTaskCreatorEventListener(eventStore: EventStore, taskStore: 
 
         val effectiveEvent = if (deletedEvent != null) {
             val result = onHandleRecoverySequence(event, deletedEvent, history)
-            // null → recovery OK eller ikke recovery → stopp
-            // triggerEvent → kjør normal path
-            result ?: return null
+            result ?: run {
+                log.warn("Failed to find a recovery for event ${event::class.simpleName}")
+                return null
+            }
         } else event
 
         // Normal path
         val tasks = try {
-            onCreateTask(effectiveEvent, history).ifEmpty { return null }
+            val tasks = onCreateTask(effectiveEvent, history)
+            if (tasks.isEmpty()) {
+                log.error("Failed to create a task for event ${event::class.simpleName}")
+                return null
+            }
+            tasks
         } catch (e: EjectException) {
             return onEjectException(event, history, e)
         }
