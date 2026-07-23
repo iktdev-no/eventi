@@ -8,7 +8,7 @@ abstract class Event {
     lateinit var referenceId: UUID
         protected set
     var eventId: UUID = UUID.randomUUID()
-        private set
+        protected set
     var metadata: Metadata = Metadata()
         protected set
 
