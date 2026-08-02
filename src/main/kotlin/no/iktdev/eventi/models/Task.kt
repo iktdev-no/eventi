@@ -11,6 +11,7 @@ abstract class Task {
     var metadata: Metadata = Metadata()
         protected set
 
+    @Transient
     var state: TaskState = TaskState()
         internal set
 
