@@ -90,21 +90,21 @@ open class DeleteEvent(
 
 abstract class SignalEvent(): Event()
 
-abstract class TaskCratedEvent(): Event()
-abstract class SingleTaskCratedEvent(val taskId: UUID): TaskCratedEvent() {
-    override fun derivedOf(vararg events: Event): SingleTaskCratedEvent {
+abstract class TaskCreatedEvent(): Event()
+abstract class SingleTaskCreatedEvent(val taskId: UUID): TaskCreatedEvent() {
+    override fun derivedOf(vararg events: Event): SingleTaskCreatedEvent {
         this.referenceId = events.first().referenceId
         this.metadata = Metadata()
             .derivedFromEventId(events.map { it.eventId }.toSet())
         return this
     }
 
-    override fun derivedOf(events: List<Event>): SingleTaskCratedEvent =
+    override fun derivedOf(events: List<Event>): SingleTaskCreatedEvent =
         derivedOf(*events.toTypedArray())
 }
 
 data class MultiTaskIdentity(val taskId: UUID, val identity: String)
-abstract class MultiTaskCreatedEvent(val taskIds: Set<MultiTaskIdentity>): TaskCratedEvent() {
+abstract class MultiTaskCreatedEvent(val taskIds: Set<MultiTaskIdentity>): TaskCreatedEvent() {
     override fun derivedOf(vararg events: Event): MultiTaskCreatedEvent {
         this.referenceId = events.first().referenceId
         this.metadata = Metadata()

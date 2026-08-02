@@ -2,7 +2,7 @@ package no.iktdev.eventi.events
 
 import mu.KotlinLogging
 import no.iktdev.eventi.models.Event
-import no.iktdev.eventi.models.SingleTaskCratedEvent
+import no.iktdev.eventi.models.SingleTaskCreatedEvent
 import no.iktdev.eventi.models.Task
 import no.iktdev.eventi.models.store.TaskStatus
 import no.iktdev.eventi.serialization.ZDS.toTask
@@ -19,7 +19,7 @@ abstract class SingleTaskCreatorEventListener(eventStore: EventStore, taskStore:
      * @return null if task is reset, task if it is to be re-created
      */
     fun getTaskOrNewFromChain(event: Event, history: List<Event>): Task? {
-        val originalTaskId = event as? SingleTaskCratedEvent ?: return null
+        val originalTaskId = event as? SingleTaskCreatedEvent ?: return null
         val foundTask = originalTaskId.taskId.let { taskStore.findByTaskId(it)?.toTask() }
         if (foundTask != null) {
             if (foundTask.state.consumed || foundTask.state.status == TaskStatus.Failed) {
@@ -92,5 +92,5 @@ abstract class SingleTaskCreatorEventListener(eventStore: EventStore, taskStore:
 
 interface SingleTaskCreatorEventListenerImplementation {
     fun onCreateTask(event: Event, history: List<Event>): Task?
-    fun onTaskCreated(event: Event, history: List<Event>, task: Task): SingleTaskCratedEvent
+    fun onTaskCreated(event: Event, history: List<Event>, task: Task): SingleTaskCreatedEvent
 }

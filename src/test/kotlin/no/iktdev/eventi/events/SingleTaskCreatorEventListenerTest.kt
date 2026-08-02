@@ -20,7 +20,7 @@ class SingleTaskCreatorEventListenerTest : TestBase() {
     // ---------------------------------------------------------
 
     class TriggerEvent : Event()
-    class CreatedEvent(taskId: UUID) : SingleTaskCratedEvent(taskId)
+    class CreatedEvent(taskId: UUID) : SingleTaskCreatedEvent(taskId)
     class ResultEvent(): Event()
     class ABasicEvent: Event()
     class ADeleteEvent(deletedEventId: UUID) : DeleteEvent(deletedEventId)
@@ -45,7 +45,7 @@ class SingleTaskCreatorEventListenerTest : TestBase() {
             return ASimpleTask().derivedOf(event)
         }
 
-        override fun onTaskCreated(event: Event, history: List<Event>, task: Task): SingleTaskCratedEvent =
+        override fun onTaskCreated(event: Event, history: List<Event>, task: Task): SingleTaskCreatedEvent =
             CreatedEvent(task.taskId).derivedOf(event)
     }
 
