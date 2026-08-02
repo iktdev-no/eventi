@@ -18,6 +18,7 @@ data class PersistedTask(
 ) {}
 
 enum class TaskStatus {
+    NotInitiated,
     Pending,
     InProgress,
     Completed,
