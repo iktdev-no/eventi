@@ -32,5 +32,13 @@ abstract class EventListener: EventListenerImplementation {
 }
 
 interface EventListenerImplementation {
+
+    /**
+     * Called when a new event occurs in the system.
+     *
+     * @param event The specific event being evaluated/processed right now.
+     * @param history The effective, valid history of events for this reference (includes both previous history and the current [event]) with the exclusion of events marked as deleted.
+     * @return A new [Event] to be produced as a result of this event, or `null` if no event should be emitted.
+     */
     fun onEvent(event: Event, history: List<Event>): Event?
 }

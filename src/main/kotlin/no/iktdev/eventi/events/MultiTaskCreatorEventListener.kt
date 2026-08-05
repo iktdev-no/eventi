@@ -146,22 +146,22 @@ abstract class MultiTaskCreatorEventListener(eventStore: EventStore, taskStore: 
             log.debug("Received an event I have created, ${event::class.simpleName}")
             return null
         }
-
         val deletedEvent = getDeletedResultEvent(event)
-
         val effectiveEvent = if (deletedEvent != null) {
             val result = onHandleRecoverySequence(event, deletedEvent, history)
             result ?: run {
-                log.warn("Failed to find a recovery for event ${event::class.simpleName}")
+                log.warn("ref:[${event.referenceId}] Failed to find a recovery for event ${event::class.simpleName}")
                 return null
             }
         } else event
+
+
 
         // Normal path
         val tasks = try {
             val tasks = onCreateTask(effectiveEvent, history)
             if (tasks.isEmpty()) {
-                log.error("Failed to create a task for event ${event::class.simpleName}")
+                log.error("ref:[${event.referenceId}] Failed to create a task for event ${event::class.simpleName}")
                 return null
             }
             tasks
@@ -175,14 +175,14 @@ abstract class MultiTaskCreatorEventListener(eventStore: EventStore, taskStore: 
         val assignedInheritance = tasks.map { it.derivedOf(createdEvent) }
         assignedInheritance.forEach { task ->
             try {
-                log.debug("Attempting to presist task {} for event {}", task.javaClass.simpleName, event::class.simpleName)
+                log.debug("ref:[${event.referenceId}] Attempting to presist task {} for event {}", task.javaClass.simpleName, event::class.simpleName)
                 if (!taskStore.persist(task)) {
-                    log.error("Failed to persist task ${Gson().toJson(task)}")
+                    log.error("ref:[${event.referenceId}] Failed to persist task ${Gson().toJson(task)}")
                     throw IllegalStateException("Could not persist task ${task.taskId}")
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
-                log.error("Failed to persist task ${task.javaClass.simpleName}")
+                log.error("ref:[${event.referenceId}] Failed to persist task ${task.javaClass.simpleName}")
             }
         }
 
