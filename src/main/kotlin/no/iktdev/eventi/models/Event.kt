@@ -12,9 +12,7 @@ abstract class Event {
     var metadata: Metadata = Metadata()
         protected set
 
-    protected open fun <T : Event> self(): T = this as T
-
-    fun producedFrom(task: Task): Event = self<Event>().apply {
+    fun producedFrom(task: Task) = apply {
         referenceId = task.referenceId
         val derivedFromIds: MutableList<UUID> = mutableListOf()
         task.metadata.derivedFromId?.let { derivedFromIds.addAll(it) }
@@ -26,32 +24,32 @@ abstract class Event {
         derivedOf(events.toList())
 
 
-    open fun derivedOf(events: List<Event>) = self<Event>().apply {
+    open fun derivedOf(events: List<Event>) =  apply {
         referenceId = events.first().referenceId
         metadata = Metadata()
             .derivedFromEventId(events.map { it.eventId }.toSet())
     }
 
-    fun newReferenceId() = self<Event>().apply {
+    fun newReferenceId() = apply {
         referenceId = UUID.randomUUID()
     }
 
-    fun usingReferenceId(refId: UUID) = self<Event>().apply {
+    fun usingReferenceId(refId: UUID) = apply {
         referenceId = refId
     }
 
     @VisibleForTesting
-    internal fun withEventId(eventId: UUID) = self<Event>().apply {
+    internal fun withEventId(eventId: UUID) = apply {
         this.eventId = eventId
     }
 
     @VisibleForTesting
-    internal fun withEventId(eventId: String) = self<Event>().apply {
+    internal fun withEventId(eventId: String) = apply {
         this.eventId = UUID.fromString(eventId)
     }
 
     @VisibleForTesting
-    internal fun withMetadata(metadata: Metadata) = self<Event>().apply {
+    internal fun withMetadata(metadata: Metadata) = apply {
         this.metadata = metadata
     }
 
