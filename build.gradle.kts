@@ -23,7 +23,7 @@ dependencies {
     implementation("io.github.microutils:kotlin-logging-jvm:2.0.11")
 
     //testImplementation(kotlin("test"))
-    testImplementation("org.assertj:assertj-core:3.4.1")
+    testImplementation("org.assertj:assertj-core:3.27.7")
 
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.7.2")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.7.2")
