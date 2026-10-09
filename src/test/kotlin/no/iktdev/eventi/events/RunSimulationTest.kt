@@ -124,7 +124,7 @@ class RunSimulationTestTest {
         poller.pollOnce()
         advanceUntilIdle()
 
-        assertThat(poller.lastSeenTime).isGreaterThan(Instant.EPOCH)
+        assertThat(poller.lastSeenTime).isAfter(Instant.EPOCH)
         assertThat(dispatcher.dispatched).hasSize(1)
     }
 
@@ -152,7 +152,7 @@ class RunSimulationTestTest {
         advanceUntilIdle()
 
         // Etter livelock-fixen skal lastSeenTime være *etter* eventet
-        assertThat(poller.lastSeenTime).isGreaterThanOrEqualTo(t)
+        assertThat(poller.lastSeenTime).isAfterOrEqualTo(t)
     }
 
     @Test
@@ -203,7 +203,7 @@ Så skal polleren ikke livelock'e
         // Etter fix: lastSeenTime skal være > T
         assertThat(poller.lastSeenTime)
             .describedAs("BUG: poller livelocker når watermark peker forbi eksisterende events")
-            .isGreaterThan(t)
+            .isAfter(t)
     }
 
 
@@ -350,7 +350,7 @@ Så skal polleren ikke livelock'e
         poller.pollOnce()
         advanceUntilIdle()
 
-        assertThat(poller.lastSeenTime).isGreaterThanOrEqualTo(tA)
+        assertThat(poller.lastSeenTime).isAfterOrEqualTo(tA)
 
         // B får et event med *nyere* timestamp enn lastSeenTime
         val tB = Instant.parse("2026-01-22T12:05:00Z")

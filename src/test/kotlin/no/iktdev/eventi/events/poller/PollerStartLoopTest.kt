@@ -317,7 +317,7 @@ class PollerStartLoopTest : TestBase() {
 
         // B skal ha flyttet watermark (på timestamp-nivå)
         val wmB2 = poller.watermarkFor(refB)
-        assertThat(wmB2!!.first).isGreaterThan(wmB1!!.first)
+        assertThat(wmB2!!.first).isAfter(wmB1!!.first)
 
     }
 
@@ -499,7 +499,7 @@ class PollerStartLoopTest : TestBase() {
         poller.pollOnce()
         val after = poller.lastSeenTime
 
-        assertThat(after).isGreaterThan(before)
+        assertThat(after).isAfter(before)
         assertThat(after).isEqualTo(before.plus(1, ChronoUnit.MICROS))
     }
 }
