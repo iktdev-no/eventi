@@ -21,8 +21,7 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
 
     open fun dispatch(referenceId: UUID, history: List<Event>, newEvents: List<Event>) {
         val deletedEventIds = (history + newEvents)
-            .filterIsInstance<DeleteEvent>()
-            .map { it.deletedEventId }
+            .getDeletedEventIds()
 
         val effectiveHistory = history
             .validEventsRecursive(deletedEventIds)
@@ -30,6 +29,7 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
 
         var candidates = newEvents
             .validEventsRecursive(deletedEventIds)
+            .addChildlessToCandidatesIfChildJustGotDeleted(newEvents.getDeletedEventIds(), history)
             .replayCandidates()
 
         // Fallback: kun når alle nye er signaler → bruk historikk som “nytt”
@@ -189,6 +189,32 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
         }
     }
 
+    inline fun <T> Iterable<T>.excluding(
+        predicate: (T) -> Boolean
+    ): List<T> = filterNot(predicate)
+
+    fun List<Event>.addChildlessToCandidatesIfChildJustGotDeleted(
+        deletedEventIds: List<UUID>,
+        history: List<Event>
+    ): List<Event> {
+        if (deletedEventIds.isEmpty()) return this
+
+        val parentsOfDeletedChild =
+            history.filter { it.eventId in deletedEventIds }.mapNotNull { it.metadata.derivedFromId }
+                .flatten()
+                .mapNotNull { history.find { h -> it == h.eventId } }
+
+        val onlyChildless = parentsOfDeletedChild.excluding { parent ->
+            history
+                .excluding { it.eventId in deletedEventIds }
+                .any { event ->
+                    parent.eventId in event.metadata.derivedFromId.orEmpty()
+                }
+        }
+
+        return this + onlyChildless
+    }
+
     fun List<Event>.replayCandidates(): List<Event> {
         val derivedFromIds = this
             .filterNot { it is SignalEvent }      // ignorer signaler som “forbrukere”
@@ -306,6 +332,5 @@ open class EventDispatcher(val eventStore: EventStore, private val lifecycleStor
         }
     }
 
-
-
+    fun List<Event>.getDeletedEventIds(): List<UUID> = this.filterIsInstance<DeleteEvent>().map { it.deletedEventId }
 }

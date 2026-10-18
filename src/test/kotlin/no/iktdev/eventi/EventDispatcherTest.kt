@@ -357,6 +357,42 @@ class EventDispatcherTest : TestBase() {
     @Test
     @DisplayName(
         """
+    Når et barns event slettes
+    Hvis parenten dermed blir barnløs
+    Så skal bare den berørte parenten legges til som retry-kandidat
+    """
+    )
+    fun shouldRetryOnlyParentWhoseChildWasDeleted() {
+        val referenceId = UUID.randomUUID()
+        val received = mutableListOf<Event>()
+
+        object : EventListener() {
+            override fun onEvent(event: Event, history: List<Event>): Event? {
+                received += event
+                return null
+            }
+        }
+
+        val parent = TriggerEvent().usingReferenceId(referenceId)
+        val deletedChild = DerivedEvent().derivedOf(parent)
+        val descendant = OtherEvent().derivedOf(deletedChild)
+
+        val history1 = listOf(parent, deletedChild)
+        dispatcher.dispatch(referenceId, history1, listOf(descendant))
+        assertThat(received).containsExactly(descendant)
+
+        received.clear()
+        assertThat(received).isEmpty()
+
+        val delete = object : DeleteEvent(deletedChild.eventId) {}.usingReferenceId(referenceId)
+        val history2 = listOf(parent, deletedChild, descendant, delete)
+        dispatcher.dispatch(referenceId, history2, listOf(delete))
+        assertThat(received).containsExactly(delete, parent)
+    }
+
+    @Test
+    @DisplayName(
+        """
     Når et event er slettet
     Hvis det finnes et tidligere ikke-signal, ikke-derived event
     Så skal replayCandidates() velge dette eventet som kandidat
@@ -723,9 +759,11 @@ sekundær sletting og korrekt lineage for nye events etter sletting
 
         // --- Historikk fanges her ---
         var dispatched: List<Event> = listOf()
+        var effectiveHistorySeen: List<Event> = listOf()
         object : EventListener() {
             override fun onEvent(event: Event, history: List<Event>): Event? {
-                dispatched = history + event
+                effectiveHistorySeen = history
+                dispatched = (dispatched + event).distinctBy { it.eventId }
                 return null
             }
         }
@@ -747,19 +785,20 @@ sekundær sletting og korrekt lineage for nye events etter sletting
         )
 
         val afterDelete = dispatched
+        val effectiveAfterDelete = effectiveHistorySeen
 
         // --- Primær sletting ---
-        assertFalse(afterDelete.any { it.eventId == parentToDelete.eventId })
-        assertFalse(afterDelete.any { it.metadata.derivedFromId == parentToDelete.eventId })
+        assertFalse(effectiveAfterDelete.any { it.eventId == parentToDelete.eventId })
+        assertFalse(effectiveAfterDelete.any { parentToDelete.eventId in it.metadata.derivedFromId.orEmpty() })
 
-        assertFalse(afterDelete.any { it.eventId == task1Created.eventId })
-        assertFalse(afterDelete.any { it.eventId == task1Result.eventId })
-        assertFalse(afterDelete.any { it.eventId == task2Created.eventId })
-        assertFalse(afterDelete.any { it.eventId == task2Result.eventId })
+        assertFalse(effectiveAfterDelete.any { it.eventId == task1Created.eventId })
+        assertFalse(effectiveAfterDelete.any { it.eventId == task1Result.eventId })
+        assertFalse(effectiveAfterDelete.any { it.eventId == task2Created.eventId })
+        assertFalse(effectiveAfterDelete.any { it.eventId == task2Result.eventId })
 
-        assertTrue(afterDelete.any { it.eventId == start.eventId })
+        assertTrue(effectiveAfterDelete.any { it.eventId == start.eventId })
         randomEvents.take(5).forEach { e ->
-            assertTrue(afterDelete.any { it.eventId == e.eventId })
+            assertTrue(effectiveAfterDelete.any { it.eventId == e.eventId })
         }
 
         // --- 1. Event som PRØVER å arve fra slettet parent ---
